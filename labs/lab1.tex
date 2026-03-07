@@ -1,0 +1,360 @@
+\documentclass[12pt]{article}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{placeins}
+\usepackage{geometry}
+\geometry{margin=1in}
+\usepackage{mdframed}
+
+
+
+\title{Communications Lab 1 - Intro to LabView}
+\date{}
+
+\begin{document}
+
+\maketitle
+\newpage
+
+\section{Exercise 1: Data Types in LabVIEW}
+
+\subsection{Objective}
+The objective of this exercise was to explore data types in LabVIEW and implement basic data conversion operations. A string input was converted into its ASCII integer representation, treated as Fahrenheit temperature values, converted to Celsius, averaged, and compared to a threshold value to determine whether the string was considered ``Hot''.
+
+\subsection{Block Diagram}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{block_diagram.png}
+    \caption{Block diagram implementation}
+    \label{fig:placeholder}
+\end{figure}
+
+\subsection{Results}
+
+For the input string \texttt{cyril}, the ASCII values obtained were:
+
+\[
+[99, 121, 114, 105, 108]
+\]
+
+After conversion to Celsius, the average temperature was calculated as 37.22°C. Since this value is below the 50°C threshold, the ``HOT?'' indicator returned False.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\linewidth]{front_panel.png}
+    \caption{Front panel output for input string ``cyril''}
+\end{figure}
+
+
+\newpage
+\section{Exercise 2: Implementation of the Central Limit Theorem}
+
+\subsection{Objective}
+
+The objective of this exercise was to visualise the Central Limit Theorem (CLT) using LabVIEW loop structures and array operations. Independent uniformly distributed random numbers were generated, their sample means computed, and the evolution of the distribution of these sample means was observed as the number of trials increased.
+
+\subsection{Theoretical Background}
+
+The Central Limit Theorem states that the distribution of the sample mean of independent and identically distributed (i.i.d.) random variables converges to a normal distribution as the sample size increases, regardless of the original distribution.
+
+If $X_1, X_2, \dots, X_n$ are i.i.d. random variables with mean $\mu$ and variance $\sigma^2$, then the sample mean
+
+\[
+\bar{X} = \frac{1}{n} \sum_{i=1}^{n} X_i
+\]
+
+approaches a Gaussian distribution with mean $\mu$ and variance $\sigma^2/n$ as $n$ becomes large.
+
+\subsection{Implementation in LabVIEW}
+
+\subsection{Task 1: Block Diagram and Front Panel}
+
+The initial implementation of the CLT experiment was completed as specified in the lab instructions. The While Loop controlled repeated trials, while nested For Loops generated a 2D array of uniformly distributed random numbers. The sample mean was calculated and accumulated using a shift register.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.85\linewidth]{block_diagram_2.png}
+    \caption{Block diagram for Exercise 2 initial implementation}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\linewidth]{frontpanel_2.png}
+    \caption{Front panel showing histogram of sample means}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{Task 2: Stopping After 1000 Iterations and 10 Histogram Bins}
+
+The implementation was modified so that the experiment stops automatically after 1000 iterations of the While Loop. The iteration terminal of the While Loop was used to track the number of executions, ensuring that the loop terminates once 1000 trials have been completed.
+
+ The number of bins was set to 10 as specified. After 1000 iterations, the histogram of the sample means exhibits an approximately Gaussian shape centred near 0.5, which is consistent with the Central Limit Theorem for uniformly distributed random variables on $[0,1]$.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ex2_histogram_1000iters.png}
+    \caption{Block Diagram and Histogram after 1000 iterations using 10 bins}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{Task 3: Standard Normal Distribution}
+
+To obtain a standard normal distribution, the code was modified so that the sample means were standardised before being passed to the histogram block.
+
+In the original implementation, the histogram was formed directly from the sample means of uniformly distributed random variables on the interval $[0,1]$. Since a uniform random variable on $[0,1]$ has mean $0.5$ and variance $1/12$, the resulting distribution of sample means is centred around $0.5$ rather than $0$.
+
+To convert this into a standard normal form, additional arithmetic blocks were introduced after the sample mean was computed. First, the constant $0.5$ was subtracted from the sample mean in order to centre the distribution at zero. Then a scaling factor based on $12$ was applied to account for the variance of the original uniform distribution. This transformed the output into a zero-mean, unit-variance variable before it was inserted into the accumulating array and sent to the histogram block.
+
+Mathematically, this corresponds to standardising the variable using
+
+\[
+Z = \sqrt{12}\,(\bar{X}-0.5),
+\]
+
+where $\bar{X}$ is the sample mean of the generated uniform random values.
+
+As a result, the histogram is no longer centred around $0.5$ as in Task 2, but instead around $0$, with a spread consistent with a standard normal distribution.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ex2_standard_normal.png}
+    \caption{Block diagram and Histogram to produce a standard normal distribution}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{Discussion}
+
+The experiment demonstrates the convergence predicted by the Central Limit Theorem. Although each random number was drawn from a uniform distribution, the distribution of the sample mean approached a normal distribution as the number of iterations increased.
+
+Increasing the number of samples within each experiment reduces the variance of the sample mean, resulting in a narrower distribution. Increasing the number of iterations improves the smoothness and stability of the histogram.
+
+\newpage
+\section{Exercise 3: AM Modulator}
+
+\subsection{Objective}
+The objective of this exercise was to implement an amplitude modulation (AM) system in LabVIEW, visualise the modulated signal in both the time domain and frequency domain (PSD), and analyse how the modulation index and message frequency affect the resulting AM waveform and spectrum.
+
+\subsection{Theory}
+For single-tone AM, the modulated signal is:
+\[
+s(t)=\left[A_c + A_m\cos(2\pi f_m t)\right]\cos(2\pi f_c t),
+\]
+where $A_m$ and $f_m$ are the message amplitude and frequency, and $A_c$ and $f_c$ are the carrier amplitude and frequency. The modulation index is defined as:
+\[
+\mu = \frac{A_m}{A_c}.
+\]
+In the frequency domain, AM produces spectral components at the carrier frequency $f_c$ and at the sidebands $f_c \pm f_m$ (for a single-tone message).
+
+\subsection{Task 1: Implementation and Clear Visualisation of Plots}
+
+The AM modulator was implemented in LabVIEW using two separate \texttt{Wave Generator} blocks. The first generated the message signal and the second generated the carrier signal.
+
+The AM waveform was then constructed by combining the message and carrier through arithmetic blocks so as to implement the standard AM expression
+
+\[
+s(t)=\left[A_c + A_m \cos(2\pi f_m t)\right]\cos(2\pi f_c t).
+\]
+
+The resulting modulated waveform was displayed using the \texttt{s(t)} indicator and passed to a second PSD block to obtain the spectrum of the AM signal.
+
+The plots on the front panel were then rescaled using the graph tools so that the time-domain waveforms and PSDs were clear and easy to interpret. In the time domain, the carrier appears as a high-frequency sinusoid, the message appears as a lower-frequency sinusoid, and the AM signal shows a carrier whose envelope follows the message waveform. In the frequency domain, the PSD of the message signal contains a dominant peak at approximately $1\,\text{kHz}$, while the PSD of the AM signal contains a carrier peak at approximately $10\,\text{kHz}$ and two sidebands at approximately $9\,\text{kHz}$ and $11\,\text{kHz}$, which is the expected spectrum for single-tone amplitude modulation.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ex3_blockdiagram.png}
+    \caption{Block diagram of the AM modulator implementation}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ex3_frontpanel_task1.png}
+    \caption{Front panel showing the message signal, carrier signal, AM waveform, and their PSD plots}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{Task 2: Effect of Modulation Index}
+
+The carrier amplitude was fixed at $A_c=2$, while the message amplitude $A_m$ was varied to obtain modulation index values $\mu \in \{0.5, 1, 1.5\}$. Since
+
+\[
+\mu = \frac{A_m}{A_c},
+\]
+
+these three cases correspond to $A_m = 1$, $2$, and $3$ respectively. For each value of $\mu$, the time-domain and PSD plots of both the message and modulated signals were recorded.
+
+\subsubsection*{Results}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ex3_mu_0_5.png}
+    \caption{Time-domain and PSD plots for $\mu=0.5$}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ex3_mu_1.png}
+    \caption{Time-domain and PSD plots for $\mu=1$}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ex3_mu_1_5.png}
+    \caption{Time-domain and PSD plots for $\mu=1.5$}
+\end{figure}
+
+\FloatBarrier
+
+\subsubsection*{Discussion}
+
+The modulation index determines how strongly the message signal varies the amplitude envelope of the carrier. In the time domain, increasing $\mu$ increases the depth of the envelope variation.
+
+For $\mu = 0.5$, the system is under-modulated. The envelope clearly follows the message signal, but its minimum value remains above zero. The waveform is therefore smooth and undistorted, and the carrier component remains visually dominant. In the PSD, the carrier peak at approximately $10\,\text{kHz}$ is much larger than the sidebands at approximately $9\,\text{kHz}$ and $11\,\text{kHz}$.
+
+For $\mu = 1$, the signal is modulated at 100\%. In this case, the envelope just reaches zero at its minimum points. This corresponds to the maximum modulation depth that can be achieved without introducing envelope distortion. The time-domain waveform shows a much deeper envelope than in the $\mu=0.5$ case, and the sidebands in the PSD are stronger.
+
+For $\mu = 1.5$, the system is over-modulated. Here, the message amplitude exceeds the carrier amplitude, so the envelope attempts to go below zero. This produces visible distortion in the time-domain waveform, often seen as pinching or inversion of the envelope. Although the sidebands become stronger still, the main consequence is that the waveform is no longer a clean envelope representation of the message. As a result, simple envelope detection would introduce distortion at the receiver.
+
+Overall, increasing the modulation index increases the amount of message information transferred into the AM waveform by making the envelope variation more pronounced and by increasing the sideband amplitudes in the PSD. However, once $\mu$ exceeds 1, the signal becomes over-modulated and distorted. Therefore, $\mu = 1$ represents the practical upper limit for undistorted conventional AM.
+
+
+
+
+\begin{mdframed}[linewidth=1pt]
+\textbf{Mathematical Insight: Effect of Modulation Index}\\[6pt]
+The AM signal can be rewritten by factoring out the carrier amplitude:
+\[
+s(t) = A_c\left[1 + \mu\cos(2\pi f_m t)\right]\cos(2\pi f_c t), \quad \mu = \frac{A_m}{A_c}
+\]
+Expanding this product gives the spectral composition of the signal:
+\[
+s(t) = A_c\cos(2\pi f_c t) + \frac{\mu A_c}{2}\cos(2\pi(f_c - f_m)t) + \frac{\mu A_c}{2}\cos(2\pi(f_c + f_m)t)
+\]
+The sideband amplitudes are directly proportional to $\mu$. The fraction of total power 
+carried by the sidebands (which contain the message information) is:
+\[
+\eta = \frac{\mu^2/2}{1 + \mu^2/2}
+\]
+For $\mu = 0.5$: $\eta \approx 11.1\%$, for $\mu = 1$: $\eta = 33.3\%$, 
+and for $\mu = 1.5$: $\eta \approx 52.9\%$. However, once $\mu > 1$, 
+the term $1 + \mu\cos(2\pi f_m t)$ becomes negative, causing envelope inversion 
+and distortion that simple envelope detection cannot recover from.
+\end{mdframed}
+
+
+
+\begin{mdframed}[linewidth=1pt]
+\textbf{Intuition: Where Does the Transmitted Power Go?}\\[6pt]
+Not all transmitted power carries useful information. The three components of the AM 
+signal each contribute to the total power independently:
+\[
+P_{\text{total}} = \underbrace{\frac{A_c^2}{2}}_{\text{carrier (wasted)}} + \underbrace{\frac{\mu^2 A_c^2}{4} + \frac{\mu^2 A_c^2}{4}}_{\text{sidebands (useful)}}
+\]
+The fraction of total power that actually carries the message is therefore:
+\[
+\eta = \frac{\mu^2/2}{1 + \mu^2/2}
+\]
+This is directly visible in the PSD plots, indeed, the ratio of sideband peak height to 
+carrier peak height is $\mu/2$, so as $\mu$ increases, the sidebands grow relative 
+to the carrier:
+\begin{center}
+\begin{tabular}{ccc}
+\hline
+$\mu$ & Sideband amplitude & Message power fraction $\eta$ \\
+\hline
+$0.5$ & $\frac{A_c}{4}$ & $\approx 11.1\%$ \\
+$1.0$ & $\frac{A_c}{2}$ & $= 33.3\%$ \\
+$1.5$ & $\frac{3A_c}{4}$ & $\approx 52.9\%$ \\
+\hline
+\end{tabular}
+\end{center}
+This explains why a higher $\mu$ is desirable, more power is allocated to the 
+sidebands that carry the message. However, $\mu = 1$ is the practical upper limit (if we are using envelope detection), 
+as exceeding it causes envelope distortion that cannot be recovered by a simple 
+envelope detector at the receiver.
+\end{mdframed}
+
+
+
+
+\subsection{Task 3: Effect of Message Frequency}
+
+The amplitudes were fixed at $A_c=1$ and $A_m=1$, while the message frequency was varied as $f_m \in \{1\,\text{kHz}, 2\,\text{kHz}, 5\,\text{kHz}\}$. The carrier frequency was kept constant at approximately $10\,\text{kHz}$. For each value of $f_m$, the time-domain and PSD plots of both the message and modulated signals were recorded.
+
+\subsubsection*{Results}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ex3_fm_1k.png}
+    \caption{Time-domain and PSD plots for $f_m=1\,\text{kHz}$}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ex3_fm_2k.png}
+    \caption{Time-domain and PSD plots for $f_m=2\,\text{kHz}$}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ex3_fm_5k.png}
+    \caption{Time-domain and PSD plots for $f_m=5\,\text{kHz}$}
+\end{figure}
+
+\FloatBarrier
+
+\subsubsection*{Discussion}
+
+The message frequency determines how quickly the envelope of the AM waveform varies with time. In the time domain, increasing $f_m$ causes the envelope to change more rapidly, so more envelope cycles are visible over the same observation window.
+
+For $f_m = 1\,\text{kHz}$, the message waveform varies relatively slowly, and the AM envelope changes gradually. In the PSD of the AM signal, the carrier peak remains at approximately $10\,\text{kHz}$, while the sidebands appear at approximately $9\,\text{kHz}$ and $11\,\text{kHz}$.
+
+For $f_m = 2\,\text{kHz}$, the message oscillates more quickly, so the envelope of the AM waveform also varies faster. In the PSD, the carrier remains at approximately $10\,\text{kHz}$, while the sidebands move to approximately $8\,\text{kHz}$ and $12\,\text{kHz}$.
+
+For $f_m = 5\,\text{kHz}$, the message frequency is much higher, so the envelope changes rapidly and appears more compressed in time. In the PSD, the sidebands are now located much further from the carrier, at approximately $5\,\text{kHz}$ and $15\,\text{kHz}$.
+
+Overall, increasing the message frequency does not change the position of the carrier or the depth of modulation, but it does increase the rate at which the envelope varies in the time domain and increases the separation between the sidebands and the carrier in the frequency domain. This is consistent with the AM spectrum occurring at $f_c \pm f_m$.
+
+A further implication is that the bandwidth of the AM signal increases with message frequency. For conventional AM, the bandwidth is
+
+\[
+B = 2f_m.
+\]
+
+Therefore, higher message frequencies require a wider transmission bandwidth.
+
+
+
+\begin{mdframed}[linewidth=1pt]
+\textbf{Mathematical Insight: Effect of Message Frequency}\\[6pt]
+Expanding the AM signal using the product-to-sum identity:
+\[
+s(t) = A_c\cos(2\pi f_c t) + \frac{A_m}{2}\cos(2\pi(f_c - f_m)t) + \frac{A_m}{2}\cos(2\pi(f_c + f_m)t)
+\]
+The three spectral components have fixed positions relative to $f_c$ and $f_m$:
+\begin{center}
+\begin{tabular}{ccc}
+\hline
+$f_m$ & Sideband positions & Bandwidth $B = 2f_m$ \\
+\hline
+$1\,\text{kHz}$ & $9\,\text{kHz},\ 11\,\text{kHz}$ & $2\,\text{kHz}$ \\
+$2\,\text{kHz}$ & $8\,\text{kHz},\ 12\,\text{kHz}$ & $4\,\text{kHz}$ \\
+$5\,\text{kHz}$ & $5\,\text{kHz},\ 15\,\text{kHz}$ & $10\,\text{kHz}$ \\
+\hline
+\end{tabular}
+\end{center}
+The carrier component is unaffected by $f_m$, confirming that its position 
+in the PSD remains fixed at $f_c = 10\,\text{kHz}$. The envelope of $s(t)$ 
+oscillates at rate $f_m$, so increasing $f_m$ compresses the envelope 
+cycles in the time domain, consistent with the observed plots.
+\end{mdframed}
+
+
+
+
+\end{document}
