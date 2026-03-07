@@ -1,0 +1,174 @@
+\section{Theory}
+\label{sec:theory}
+This section summarizes the signal theory needed for amplitude modulation (AM) and its demodulation methods.
+
+\subsection{Amplitude Modulation Fundamentals}
+For standard AM with a large carrier (DSB-LC), the transmitted signal is
+\begin{equation}
+s(t)=\left[A_c + A_m\,m(t)\right]\cos(2\pi f_c t),
+\label{eq:am_general}
+\end{equation}
+where $m(t)$ is the baseband message (typically normalized so that $|m(t)|\le 1$).
+
+For a single-tone message,
+\begin{equation}
+m(t)=\cos(2\pi f_m t),
+\label{eq:single_tone}
+\end{equation}
+so
+\begin{equation}
+s(t)=\left[A_c + A_m\cos(2\pi f_m t)\right]\cos(2\pi f_c t).
+\label{eq:am_single_tone}
+\end{equation}
+
+The parameters are:
+\begin{itemize}
+\item $A_c$: carrier amplitude,
+\item $A_m$: message scaling amplitude,
+\item $f_c$: carrier frequency,
+\item $f_m$: message frequency (single-tone case).
+\end{itemize}
+
+The modulation index is
+\begin{equation}
+\mu=\frac{A_m}{A_c}.
+\label{eq:mu_def}
+\end{equation}
+AM works by placing the message in the \emph{envelope} of a high-frequency carrier:
+\begin{equation}
+e(t)=A_c + A_m\,m(t)=A_c\left[1+\mu\,m(t)\right].
+\end{equation}
+In DSB-LC, the carrier term is deliberately transmitted, which enables simple envelope detection.
+
+\subsection{Spectral Characteristics of AM}
+Let $M(f)$ be the Fourier transform of $m(t)$. From \eqref{eq:am_general},
+\begin{equation}
+S(f)=\frac{A_c}{2}\!\left[\delta(f-f_c)+\delta(f+f_c)\right]
++\frac{A_m}{2}\!\left[M(f-f_c)+M(f+f_c)\right].
+\label{eq:am_spectrum_general}
+\end{equation}
+This shows two effects:
+\begin{itemize}
+\item a carrier line at $\pm f_c$,
+\item shifted copies of baseband spectrum around $\pm f_c$ (frequency translation).
+\end{itemize}
+
+For $m(t)=\cos(2\pi f_m t)$, the sidebands are at
+\begin{equation}
+f_c-f_m \quad \text{and} \quad f_c+f_m.
+\end{equation}
+Hence the AM bandwidth is
+\begin{equation}
+B=2f_m
+\end{equation}
+for single-tone modulation, and more generally
+\begin{equation}
+B=2B_m,
+\end{equation}
+where $B_m$ is the message bandwidth.
+
+\subsection{Coherent Demodulation Theory}
+Coherent (synchronous) demodulation multiplies the received AM signal by a local carrier:
+\begin{equation}
+y(t)=s(t)\cos(2\pi f_c t+\phi),
+\label{eq:coherent_multiply}
+\end{equation}
+where $\phi$ is the receiver phase error.
+
+Using $\cos\alpha\cos\beta=\tfrac{1}{2}[\cos(\alpha-\beta)+\cos(\alpha+\beta)]$,
+\begin{equation}
+y(t)=\frac{1}{2}\left[A_c+A_m m(t)\right]\cos\phi
++\frac{1}{2}\left[A_c+A_m m(t)\right]\cos(4\pi f_c t+\phi).
+\label{eq:coherent_expand}
+\end{equation}
+Therefore:
+\begin{itemize}
+\item the first term is the desired baseband term,
+\item the second term is centered around $2f_c$ and must be removed.
+\end{itemize}
+
+After low-pass filtering:
+\begin{equation}
+y_{\mathrm{LPF}}(t)=\frac{1}{2}\left[A_c+A_m m(t)\right]\cos\phi.
+\label{eq:coherent_lpf}
+\end{equation}
+
+Three key consequences follow directly from \eqref{eq:coherent_lpf}:
+\begin{itemize}
+\item \textbf{Why low-pass filter?} To reject the $2f_c$ mixing product.
+\item \textbf{Why remove DC?} The term $\tfrac{1}{2}A_c\cos\phi$ is a DC offset.
+\item \textbf{Why scale amplitude?} The message is attenuated by $\tfrac{1}{2}\cos\phi$ (and any LO gain factors), so a gain correction is needed.
+\end{itemize}
+
+Coherence is critical: if $\phi\neq 0$, the output is reduced by $\cos\phi$; if frequency is mismatched, an additional time-varying term appears and the recovered baseband is distorted.
+
+\subsection{Envelope Detection Theory}
+Envelope detection is a nonlinear alternative to coherent detection. Conceptually it consists of:
+\begin{enumerate}
+\item rectification,
+\item low-pass filtering,
+\item DC removal.
+\end{enumerate}
+
+For correct operation, the envelope must not invert. With $|m(t)|\le 1$:
+\begin{equation}
+e_{\min}=A_c-A_m=A_c(1-\mu),
+\end{equation}
+so the no-inversion condition is
+\begin{equation}
+\mu \le 1.
+\label{eq:no_inversion}
+\end{equation}
+If $\mu>1$, envelope inversion (over-modulation) occurs, and the rectified/filtered signal no longer tracks the original message linearly.
+
+Compared with coherent detection:
+\begin{itemize}
+\item coherent detection is linear (with a synchronized carrier) and more accurate,
+\item envelope detection is simpler but approximate and more sensitive to amplitude impairments.
+\end{itemize}
+
+\subsection{Rectification Loss and Amplitude Scaling}
+Rectification is nonlinear, so there is no single impulse response that applies to all inputs. A useful approximation (also the intuition used in the handout Appendix B) is to model half-wave rectification as multiplication by a periodic gating waveform $q(t)$ that keeps positive carrier half-cycles and suppresses negative ones.
+
+For a 50\% duty-cycle gate synchronized to the carrier:
+\begin{equation}
+q(t)=\frac{1}{2}+\frac{2}{\pi}\!\left[\cos(\omega_c t)+\frac{1}{3}\cos(3\omega_c t)+\frac{1}{5}\cos(5\omega_c t)+\cdots\right].
+\label{eq:gate_series}
+\end{equation}
+Multiplying $s(t)$ by $q(t)$ creates many frequency components. After low-pass filtering, the recovered envelope term is attenuated by an approximately constant factor, commonly expressed as
+\begin{equation}
+\hat{e}(t)\approx \frac{1}{\pi}\left[A_c + A_m m(t)\right].
+\label{eq:pi_loss}
+\end{equation}
+This explains the practical $\pi$ scaling compensation: multiplying by $\pi$ (before or after rectification, depending on implementation) restores the expected amplitude. The exact factor depends on the exact rectifier model, but the $\pi$ correction captures the dominant loss mechanism.
+
+\subsection{Role of Low-Pass Filtering}
+Low-pass filtering is essential in both demodulators:
+\begin{itemize}
+\item \textbf{Coherent detection:} remove terms around $2f_c$ and keep baseband.
+\item \textbf{Envelope detection:} smooth rectifier ripple/harmonics and retain envelope variation.
+\end{itemize}
+
+Cutoff selection rule:
+\begin{equation}
+f_{\mathrm{LP}} \gtrsim B_m \quad \text{and} \quad f_{\mathrm{LP}} \ll f_c.
+\end{equation}
+So the message passes with low distortion while carrier-related components are rejected.
+
+Filter-order tradeoff:
+\begin{itemize}
+\item higher order gives stronger stopband rejection,
+\item but increases phase delay/transient settling.
+\end{itemize}
+Butterworth filters are widely used because their passband is maximally flat (no ripple), which helps preserve message amplitude in-band.
+
+\subsection{Noise Effects in AM Systems}
+Noise affects AM demodulators differently:
+\begin{itemize}
+\item \textbf{Envelope detection:} directly tracks amplitude, so amplitude noise appears strongly in the output.
+\item \textbf{Coherent detection:} generally more robust because synchronized mixing and LPF provide better selectivity against out-of-band components.
+\end{itemize}
+
+The recovered message amplitude grows with $A_m$ (hence with $\mu$), so at very small $\mu$ the desired baseband can be visually dominated by noise. Increasing $\mu$ improves message visibility up to the over-modulation limit $\mu\le 1$ for envelope detection.
+
+Increasing receiver gain raises both desired signal and noise/interference. In practice this can make weaker disturbances visible in time and frequency plots, even when the intended AM signal is still present.
