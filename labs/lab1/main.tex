@@ -1,22 +1,9 @@
-\documentclass[12pt]{article}
-
-\usepackage{graphicx}
-\usepackage{amsmath}
-\usepackage{float}
-\usepackage{placeins}
-\usepackage{geometry}
-\geometry{margin=1in}
-\usepackage{mdframed}
-
-
-
-\title{Communications Lab 1 - Intro to LabView}
-\date{}
+\documentclass[../../main.tex]{subfiles}
 
 \begin{document}
 
-\maketitle
-\newpage
+\chapter{Lab 1: Introduction to LabVIEW}
+\label{sec:lab1}
 
 \section{Exercise 1: Data Types in LabVIEW}
 
@@ -26,7 +13,7 @@ The objective of this exercise was to explore data types in LabVIEW and implemen
 \subsection{Block Diagram}
 \begin{figure}[H]
     \centering
-    \includegraphics[width=1\linewidth]{block_diagram.png}
+    \labincludegraphics[width=1\linewidth]{figures/block_diagram.png}
     \caption{Block diagram implementation}
     \label{fig:placeholder}
 \end{figure}
@@ -43,7 +30,7 @@ After conversion to Celsius, the average temperature was calculated as 37.22°C.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.8\linewidth]{front_panel.png}
+    \labincludegraphics[width=0.8\linewidth]{figures/front_panel.png}
     \caption{Front panel output for input string ``cyril''}
 \end{figure}
 
@@ -75,13 +62,13 @@ The initial implementation of the CLT experiment was completed as specified in t
 
 \begin{figure}
     \centering
-    \includegraphics[width=0.85\linewidth]{block_diagram_2.png}
+    \labincludegraphics[width=0.85\linewidth]{figures/block_diagram_2.png}
     \caption{Block diagram for Exercise 2 initial implementation}
 \end{figure}
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.85\linewidth]{frontpanel_2.png}
+    \labincludegraphics[width=0.85\linewidth]{figures/frontpanel_2.png}
     \caption{Front panel showing histogram of sample means}
 \end{figure}
 
@@ -95,7 +82,7 @@ The implementation was modified so that the experiment stops automatically after
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\linewidth]{ex2_histogram_1000iters.png}
+    \labincludegraphics[width=0.9\linewidth]{figures/ex2_histogram_1000iters.png}
     \caption{Block Diagram and Histogram after 1000 iterations using 10 bins}
 \end{figure}
 
@@ -121,7 +108,7 @@ As a result, the histogram is no longer centred around $0.5$ as in Task 2, but i
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\linewidth]{ex2_standard_normal.png}
+    \labincludegraphics[width=0.9\linewidth]{figures/ex2_standard_normal.png}
     \caption{Block diagram and Histogram to produce a standard normal distribution}
 \end{figure}
 
@@ -166,13 +153,13 @@ The plots on the front panel were then rescaled using the graph tools so that th
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\linewidth]{ex3_blockdiagram.png}
+    \labincludegraphics[width=0.9\linewidth]{figures/ex3_blockdiagram.png}
     \caption{Block diagram of the AM modulator implementation}
 \end{figure}
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\linewidth]{ex3_frontpanel_task1.png}
+    \labincludegraphics[width=0.9\linewidth]{figures/ex3_frontpanel_task1.png}
     \caption{Front panel showing the message signal, carrier signal, AM waveform, and their PSD plots}
 \end{figure}
 
@@ -192,19 +179,19 @@ these three cases correspond to $A_m = 1$, $2$, and $3$ respectively. For each v
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\linewidth]{ex3_mu_0_5.png}
+    \labincludegraphics[width=0.9\linewidth]{figures/ex3_mu_0_5.png}
     \caption{Time-domain and PSD plots for $\mu=0.5$}
 \end{figure}
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\linewidth]{ex3_mu_1.png}
+    \labincludegraphics[width=0.9\linewidth]{figures/ex3_mu_1.png}
     \caption{Time-domain and PSD plots for $\mu=1$}
 \end{figure}
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\linewidth]{ex3_mu_1_5.png}
+    \labincludegraphics[width=0.9\linewidth]{figures/ex3_mu_1_5.png}
     \caption{Time-domain and PSD plots for $\mu=1.5$}
 \end{figure}
 
@@ -290,19 +277,19 @@ The amplitudes were fixed at $A_c=1$ and $A_m=1$, while the message frequency wa
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\linewidth]{ex3_fm_1k.png}
+    \labincludegraphics[width=0.9\linewidth]{figures/ex3_fm_1k.png}
     \caption{Time-domain and PSD plots for $f_m=1\,\text{kHz}$}
 \end{figure}
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\linewidth]{ex3_fm_2k.png}
+    \labincludegraphics[width=0.9\linewidth]{figures/ex3_fm_2k.png}
     \caption{Time-domain and PSD plots for $f_m=2\,\text{kHz}$}
 \end{figure}
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\linewidth]{ex3_fm_5k.png}
+    \labincludegraphics[width=0.9\linewidth]{figures/ex3_fm_5k.png}
     \caption{Time-domain and PSD plots for $f_m=5\,\text{kHz}$}
 \end{figure}
 

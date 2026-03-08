@@ -1,0 +1,28 @@
+\section{Exercise 4 (Bonus): Music Transmission via USRP}
+\label{sec:lab2_ex4_bonus}
+
+This bonus exercise uses the same AM USRP transmitter and receiver chain from
+Exercise~3, but replaces the single-tone message with a music waveform. The aim
+is not to introduce a new analytical task. Instead, it serves as an end-to-end
+verification that the hardware chain can carry a richer audio signal while
+preserving recognizable structure after demodulation.
+
+The received audio appears consistent with the melody of \emph{Fur Elise} by
+Beethoven, which suggests that the modulation, transmission, and demodulation
+stages remain functional for a more realistic baseband input.
+
+\begin{figure}[H]
+\centering
+\labincludegraphics[width=0.8\linewidth]{figures/AM_Music_USRP.png}
+\caption{USRP AM verification capture using a music waveform.}
+\label{fig:lab2_ex4_music}
+\end{figure}
+
+\subsection{Interpretation}
+
+From the plot alone, the main conclusion is that the recovered signal behaves
+like a genuine audio waveform rather than a single sinusoid. This is enough for
+verification of the transmission chain, but it is not strong evidence for
+identifying the exact song from spectrum or PSD information alone. Melody is a
+time-varying property, so exact identification would require the recovered audio
+itself or a time-frequency representation such as a spectrogram.

@@ -1,0 +1,52 @@
+\section{Exercise 1a: Coherent Demodulation}
+\label{sec:lab2_ex1a}
+
+\subsection{Objective}
+
+Implement a coherent AM demodulator that recovers the baseband message in both
+time and frequency domains.
+
+\subsection{Module Design}
+
+The coherent demodulation sub-VI implements the following processing chain:
+\begin{enumerate}
+\item multiply the AM input signal by a local carrier at the same carrier
+frequency,
+\item apply a Butterworth low-pass filter with adjustable order and cutoff,
+\item estimate the DC component of the filtered signal and subtract it,
+\item display the recovered message in time domain and by means of a PSD
+estimate.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\labincludegraphics[width=\linewidth]{figures/Coherant_Demodulation_VI.png}
+\caption{Block diagram of the coherent demodulation VI.}
+\label{fig:lab2_coherent_vi}
+\end{figure}
+
+\subsection{Link to Theory}
+
+From the coherent detection model in
+Section~\ref{sec:lab2_theory}, the low-pass filtered output is
+\begin{equation}
+y_{\mathrm{LPF}}(t)=\frac{1}{2}\left[A_c + A_m m(t)\right]\cos\phi.
+\end{equation}
+This shows that the demodulator output contains both the desired baseband term
+and a DC offset proportional to the carrier amplitude.
+
+\subsection{Why Filtering, DC Removal, and Scaling Are Needed}
+
+\begin{itemize}
+\item \textbf{Low-pass filter:} removes the mixing product around $2f_c$.
+\item \textbf{DC removal:} removes the carrier-dependent offset and recenters the
+output around zero.
+\item \textbf{Amplitude scaling:} compensates for the attenuation introduced by
+the product detector.
+\end{itemize}
+
+\subsection{Expected Output}
+
+With correct carrier synchronization, the recovered waveform should be a sinusoid
+at the message frequency $f_m$. In the PSD, the dominant spectral component
+should also appear at $f_m$, confirming successful baseband recovery.

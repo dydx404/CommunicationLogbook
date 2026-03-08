@@ -1,0 +1,1022 @@
+\section{Theory}
+\label{sec:lab2_theory}
+
+This section summarizes the signal theory needed for AM modulation and for the
+two demodulation methods used in the lab. The emphasis is on the practical
+signal-processing intuition behind the LabVIEW blocks rather than on formula
+manipulation alone.
+
+\subsection{Amplitude Modulation Fundamentals}
+
+For standard AM with a transmitted carrier, the signal can be written as
+\begin{equation}
+s(t)=\left[A_c + A_m\,m(t)\right]\cos(2\pi f_c t),
+\label{eq:lab2_am_general}
+\end{equation}
+where $m(t)$ is the baseband message, $A_c$ is the carrier amplitude, $A_m$ is
+the message scaling amplitude, and $f_c$ is the carrier frequency.
+
+For a single-tone message,
+\begin{equation}
+m(t)=\cos(2\pi f_m t),
+\label{eq:lab2_single_tone}
+\end{equation}
+so the AM waveform becomes
+\begin{equation}
+s(t)=\left[A_c + A_m\cos(2\pi f_m t)\right]\cos(2\pi f_c t).
+\label{eq:lab2_am_single_tone}
+\end{equation}
+
+The main parameters are:
+\begin{itemize}
+\item $A_c$: carrier amplitude,
+\item $A_m$: message scaling amplitude,
+\item $f_c$: carrier frequency,
+\item $f_m$: message frequency in the single-tone case.
+\end{itemize}
+
+The modulation index is
+\begin{equation}
+\mu=\frac{A_m}{A_c}.
+\label{eq:lab2_mu}
+\end{equation}
+The information is carried by the envelope
+\begin{equation}
+e(t)=A_c + A_m\,m(t)=A_c\left[1+\mu\,m(t)\right].
+\end{equation}
+In large-carrier AM, the carrier term is intentionally transmitted so that
+simple envelope recovery remains possible.
+
+\subsection{Spectral Characteristics of AM}
+
+Let $M(f)$ denote the Fourier transform of $m(t)$. From
+\eqref{eq:lab2_am_general},
+\begin{equation}
+S(f)=\frac{A_c}{2}\left[\delta(f-f_c)+\delta(f+f_c)\right]
++\frac{A_m}{2}\left[M(f-f_c)+M(f+f_c)\right].
+\label{eq:lab2_am_spectrum_general}
+\end{equation}
+This immediately shows two effects:
+\begin{itemize}
+\item a carrier line at $\pm f_c$,
+\item shifted copies of the baseband spectrum around $\pm f_c$.
+\end{itemize}
+
+For a single-tone message, the sidebands appear at
+\begin{equation}
+f_c-f_m \quad \text{and} \quad f_c+f_m.
+\end{equation}
+Hence the AM bandwidth is
+\begin{equation}
+B=2f_m
+\end{equation}
+for single-tone modulation and, more generally,
+\begin{equation}
+B=2B_m,
+\end{equation}
+where $B_m$ is the message bandwidth.
+
+\subsection{Coherent Demodulation Theory}
+
+Coherent demodulation multiplies the received signal by a synchronized local
+carrier:
+\begin{equation}
+y(t)=s(t)\cos(2\pi f_c t+\phi),
+\end{equation}
+where $\phi$ is the receiver phase error.
+
+Using $\cos\alpha\cos\beta=\tfrac{1}{2}[\cos(\alpha-\beta)+\cos(\alpha+\beta)]$,
+\begin{equation}
+y(t)=\frac{1}{2}\left[A_c+A_m m(t)\right]\cos\phi
++\frac{1}{2}\left[A_c+A_m m(t)\right]\cos(4\pi f_c t+\phi).
+\label{eq:lab2_coherent_expand}
+\end{equation}
+Therefore:
+\begin{itemize}
+\item the first term is the desired baseband term,
+\item the second term is centered around $2f_c$ and must be removed.
+\end{itemize}
+
+After low-pass filtering, the recovered signal is
+\begin{equation}
+y_{\mathrm{LPF}}(t)=\frac{1}{2}\left[A_c+A_m m(t)\right]\cos\phi.
+\label{eq:lab2_coherent_lpf}
+\end{equation}
+
+Equation~\eqref{eq:lab2_coherent_lpf} directly explains the three main design
+steps in the coherent detector:
+\begin{itemize}
+\item low-pass filtering removes the product term around $2f_c$,
+\item DC removal is needed because the term proportional to $A_c$ appears as an
+offset,
+\item amplitude scaling is needed because the desired message is attenuated by
+roughly a factor of $1/2$ in the ideal synchronized case.
+\end{itemize}
+
+\begin{tcolorbox}[breakable, colback=blue!5!white, colframe=blue!60!black,
+title={\textbf{Intuition: Why Amplitude Scaling Is Needed}}]
+After mixing the AM signal with the local oscillator (LO), the low-pass output
+can be written in the more practical form
+\begin{equation}
+y_{\mathrm{LPF}}(t)=\frac{A_{\mathrm{LO}}}{2}\cos\phi
+\left[A_c + A_m m(t)\right],
+\end{equation}
+where $A_{\mathrm{LO}}$ represents any LO amplitude gain in the receiver chain.
+The attenuation therefore comes from two sources:
+\begin{itemize}
+\item the factor $\tfrac{1}{2}$ from the product-to-sum identity,
+\item the factor $A_{\mathrm{LO}}\cos\phi$ from hardware gain and phase error.
+\end{itemize}
+In simulation, $A_{\mathrm{LO}}=1$ and $\phi=0$, so multiplying the recovered
+message by $2$ restores the original amplitude. In hardware, the same idea
+holds, but some calibration may still be needed because receiver gain is not
+idealized.
+\end{tcolorbox}
+
+Coherence matters. If $\phi \neq 0$, the output is reduced by $\cos\phi$, and
+if the local oscillator frequency is mismatched, the recovered waveform becomes
+time-varyingly distorted instead of simply attenuated.
+
+\subsection{Envelope Detection Theory}
+
+Envelope detection is a simpler nonlinear alternative to coherent detection.
+Conceptually, it consists of:
+\begin{enumerate}
+\item rectification,
+\item low-pass filtering,
+\item DC removal.
+\end{enumerate}
+
+For correct operation, the envelope must not invert. The
+minimum envelope value is
+\begin{equation}
+e_{\min}=A_c-A_m=A_c(1-\mu).
+\end{equation}
+Therefore the no-inversion condition is
+\begin{equation}
+\mu \le 1.
+\label{eq:lab2_no_inversion}
+\end{equation}
+When $\mu > 1$, over-modulation causes envelope inversion and the rectified,
+filtered waveform no longer tracks the original message linearly.
+
+Compared with coherent detection:
+\begin{itemize}
+\item coherent detection is linear when the carrier is properly synchronized and
+therefore gives a more faithful recovery,
+\item envelope detection is simpler to implement but is only approximate and is
+more sensitive to amplitude impairments.
+\end{itemize}
+
+\subsection{Rectification Loss and Amplitude Scaling}
+
+Rectification is nonlinear, so there is no single impulse response that applies
+to all inputs. A useful approximation, and the one developed in the 
+notes, is to model half-wave rectification as multiplication by a periodic
+gating waveform $q(t)$ that keeps positive carrier half-cycles and suppresses
+negative ones.
+
+For a 50\% duty-cycle gate synchronized to the carrier, we may write
+\begin{equation}
+q(t)=\frac{1}{2}+q_{\mathrm{AC}}(t),
+\end{equation}
+where the AC part has zero mean and contains only odd harmonics of the carrier.
+After multiplication and low-pass filtering, the recovered envelope is
+attenuated by an approximately constant factor,
+\begin{equation}
+\hat{e}(t)\approx \frac{1}{\pi}\left[A_c + A_m m(t)\right].
+\label{eq:lab2_pi_loss}
+\end{equation}
+This is why a factor of $\pi$ is often introduced in the envelope detector to
+restore the expected amplitude before or after rectification, depending on the
+implementation.
+
+\begin{tcolorbox}[breakable, colback=orange!5!white,
+colframe=orange!60!black,
+title={\textbf{Intuition: Fourier Series of the Rectification Function (Part 1: Decomposition of $q(t)$)}}]
+The half-wave rectifier switches between 1 and 0. With carrier period
+$T_c = 1/f_c$ and angular carrier frequency $\omega_c = 2\pi f_c$, the
+switching function is
+\begin{equation}
+q(t)=
+\begin{cases}
+1 & \cos(\omega_c t) \geq 0 \\
+0 & \cos(\omega_c t) < 0.
+\end{cases}
+\end{equation}
+
+We decompose this into a DC part and a zero-mean AC part:
+\begin{equation}
+q(t)=\frac{1}{2}+q_{\mathrm{AC}}(t),
+\end{equation}
+
+The DC term $\tfrac{1}{2}$ multiplied by $s(t)$ gives $\tfrac{1}{2}s(t)$, which
+is still centered at $\pm f_c$ and is therefore removed completely by the
+low-pass filter. So the DC part does not contribute to baseband recovery.
+
+The AC part oscillates symmetrically between $+\tfrac{1}{2}$ and
+$-\tfrac{1}{2}$:
+\begin{equation}
+q_{\mathrm{AC}}(t)=
+\begin{cases}
++\tfrac{1}{2} & t \in [0,\,T_c/4) \cup [3T_c/4,\,T_c) \\
+-\tfrac{1}{2} & t \in [T_c/4,\,3T_c/4).
+\end{cases}
+\end{equation}
+
+Since $\cos(\omega_c t)$ is even, $q_{\mathrm{AC}}(t)$ is also even, so its
+Fourier series contains only cosine terms and no DC:
+\begin{equation}
+q_{\mathrm{AC}}(t)=\sum_{n=1,3,5,\ldots} a_n \cos(n\omega_c t).
+\end{equation}
+
+Only odd harmonics appear because of half-wave symmetry:
+\begin{equation}
+q_{\mathrm{AC}}(t+T_c/2)=-q_{\mathrm{AC}}(t).
+\end{equation}
+\end{tcolorbox}
+
+\begin{tcolorbox}[breakable, colback=orange!5!white,
+colframe=orange!60!black,
+title={\textbf{Intuition: Fourier Series of the Rectification Function (Part 2: Computing the Coefficients)}}]
+\textbf{Step 1:} The cosine Fourier coefficients are
+\begin{equation}
+a_n = \frac{2}{T_c}\int_0^{T_c} q_{\mathrm{AC}}(t)\cos(n\omega_c t)\,dt.
+\end{equation}
+
+Splitting the integral over the intervals where
+$q_{\mathrm{AC}}(t)=+\tfrac{1}{2}$ and $q_{\mathrm{AC}}(t)=-\tfrac{1}{2}$ gives
+\begin{align}
+a_n =\; &\frac{2}{T_c}\Bigg[
+\frac{1}{2}\int_0^{T_c/4}\cos(n\omega_c t)\,dt \nonumber\\
+&-\frac{1}{2}\int_{T_c/4}^{3T_c/4}\cos(n\omega_c t)\,dt \nonumber\\
+&+\frac{1}{2}\int_{3T_c/4}^{T_c}\cos(n\omega_c t)\,dt\Bigg].
+\end{align}
+
+\textbf{Step 2:} Using
+$\int \cos(n\omega_c t)\,dt = \frac{\sin(n\omega_c t)}{n\omega_c}$ and
+$\omega_c T_c = 2\pi$,
+\begin{align}
+\int_0^{T_c/4}\cos(n\omega_c t)\,dt
+&= \frac{\sin(n\pi/2)}{n\omega_c},\\[4pt]
+\int_{T_c/4}^{3T_c/4}\cos(n\omega_c t)\,dt
+&= \frac{\sin(3n\pi/2)-\sin(n\pi/2)}{n\omega_c},\\[4pt]
+\int_{3T_c/4}^{T_c}\cos(n\omega_c t)\,dt
+&= \frac{\sin(2n\pi)-\sin(3n\pi/2)}{n\omega_c}
+= \frac{-\sin(3n\pi/2)}{n\omega_c}.
+\end{align}
+
+\textbf{Step 3:} Combining these terms and using $T_c\omega_c = 2\pi$ gives
+\begin{align}
+a_n &= \frac{1}{n\pi}\Bigg[
+\sin\!\frac{n\pi}{2}
+- \frac{1}{2}\!\left(\sin\!\frac{3n\pi}{2} - \sin\!\frac{n\pi}{2}\right)
+- \frac{1}{2}\sin\!\frac{3n\pi}{2}
+\Bigg] \nonumber\\[4pt]
+&= \frac{1}{n\pi}\Bigg[
+\frac{3}{2}\sin\!\frac{n\pi}{2}
+- \sin\!\frac{3n\pi}{2}
+\Bigg].
+\end{align}
+
+For odd $n$, $\sin(3n\pi/2)=-\sin(n\pi/2)$, so
+\begin{equation}
+\boxed{a_n = \frac{2\sin(n\pi/2)}{n\pi}}.
+\end{equation}
+\end{tcolorbox}
+
+\begin{tcolorbox}[breakable, colback=orange!5!white,
+colframe=orange!60!black,
+title={\textbf{Intuition: Fourier Series of the Rectification Function (Part 3: Final Series and the $\tfrac{1}{\pi}$ Result)}}]
+\textbf{Step 4:} Evaluating the coefficient formula,
+\begin{itemize}
+\item for even $n$, $\sin(n\pi/2)=0$, so $a_n=0$,
+\item for odd $n$, the first coefficients are
+\begin{align}
+n=1:&\quad a_1 = +\frac{2}{\pi}, \\
+n=3:&\quad a_3 = -\frac{2}{3\pi}, \\
+n=5:&\quad a_5 = +\frac{2}{5\pi}.
+\end{align}
+\end{itemize}
+
+Therefore
+\begin{equation}
+\boxed{q_{\mathrm{AC}}(t)=\frac{2}{\pi}\left[
+\cos(\omega_c t)-\frac{1}{3}\cos(3\omega_c t)
++\frac{1}{5}\cos(5\omega_c t)-\cdots\right]}.
+\end{equation}
+
+The handout figure plots magnitudes of the spectral lines, which is why all
+spikes appear positive even though the odd-harmonic coefficients alternate in
+sign.
+
+\textbf{Step 5:} The fundamental term is the one that produces the recovered
+baseband. Multiplying
+\begin{equation}
+s(t)=\left[A_c + A_m m(t)\right]\cos(\omega_c t)
+\end{equation}
+by $\tfrac{2}{\pi}\cos(\omega_c t)$ gives
+\begin{align}
+[A_c + A_m m(t)]\cos(\omega_c t)\cdot \frac{2}{\pi}\cos(\omega_c t)
+=\;&\frac{2}{\pi}[A_c + A_m m(t)]\cos^2(\omega_c t)\nonumber\\
+=\;&\frac{2}{\pi}[A_c + A_m m(t)]\cdot\frac{1}{2}
+\left[1+\cos(2\omega_c t)\right]\nonumber\\
+=\;&\underbrace{\frac{1}{\pi}[A_c + A_m m(t)]}_{\text{baseband: kept by LPF}}
++\underbrace{\frac{1}{\pi}[A_c + A_m m(t)]\cos(2\omega_c t)}_{\text{at }2f_c\text{: removed by LPF}}.
+\end{align}
+
+After low-pass filtering,
+\begin{equation}
+\boxed{\hat{e}(t)=\frac{1}{\pi}[A_c + A_m m(t)]}.
+\end{equation}
+
+So the $\tfrac{1}{\pi}$ factor comes from the Fourier coefficient
+$\tfrac{2}{\pi}$ of the rectification waveform and the extra $\tfrac{1}{2}$
+from $\cos^2(\omega_c t)=\tfrac{1}{2}[1+\cos(2\omega_c t)]$. Multiplying by
+$\pi$ in the LabVIEW VI compensates that dominant loss, while the remaining DC
+term is later removed by the DC-removal stage.
+\end{tcolorbox}
+
+\begin{tcolorbox}[breakable, colback=purple!5!white,
+colframe=purple!60!black,
+title={\textbf{Intuition: Spectral Interpretation of Envelope Detection}}]
+The same result can also be understood in the frequency domain. From the Fourier
+series above, the rectification waveform produces a line spectrum. In magnitude
+form, this can be written as
+\begin{equation}
+Q(f)=\frac{1}{2}\delta(f)
++\sum_{n=1,3,5,\ldots}\frac{1}{n\pi}
+\left[\delta(f-nf_c)+\delta(f+nf_c)\right].
+\end{equation}
+
+Using the AM spectrum
+\begin{equation}
+S(f)=\frac{A_c}{2}\left[\delta(f-f_c)+\delta(f+f_c)\right]
++\frac{A_m}{2}\left[M(f-f_c)+M(f+f_c)\right],
+\end{equation}
+the rectified signal spectrum is
+\begin{equation}
+R(f)=S(f) * Q(f).
+\end{equation}
+Since $Q(f)$ is a sum of impulses at $\pm f_c$, $\pm 3f_c$, $\pm 5f_c$, and so
+on, the convolution replicates the AM spectrum around each of these frequencies.
+The impulses at $\pm f_c$ are the ones that shift copies of $S(f)$ down to
+baseband, where they pass through the low-pass filter.
+\end{tcolorbox}
+
+\textbf{Why the factor is $\tfrac{2A}{\pi}$:} both the impulse at $+f_c$ and the
+impulse at $-f_c$ have amplitude $\tfrac{A}{\pi}$, where $A=\tfrac{1}{2}$ is the
+amplitude of the AC part of the rectification waveform. Each independently
+shifts a copy of $S(f)$ to baseband, so their contributions add:
+\begin{equation}
+\frac{A}{\pi}+\frac{A}{\pi}=\frac{2A}{\pi}.
+\end{equation}
+Substituting $A=\tfrac{1}{2}$ gives
+\begin{equation}
+\frac{2A}{\pi}=\frac{1}{\pi},
+\end{equation}
+which matches the time-domain derivation above.
+
+\begin{figure}[H]
+\centering
+\labincludegraphics[width=0.9\linewidth]{figures/convolutionrectifier.jpeg}
+\caption{Rectification viewed as spectral replication of the AM signal.}
+\label{fig:lab2_rectifier_convolution}
+\end{figure}
+
+\subsection{Role of Low-Pass Filtering}
+
+Low-pass filtering is essential in both demodulators:
+\begin{itemize}
+\item in coherent detection it removes components near $2f_c$ and retains the
+baseband term,
+\item in envelope detection it smooths rectifier ripple and rejects higher
+harmonics while retaining the slow envelope variation.
+\end{itemize}
+
+A practical cutoff rule is to choose the filter so that
+\begin{equation}
+f_{\mathrm{LP}} \gtrsim B_m
+\quad \text{and} \quad
+f_{\mathrm{LP}} \ll f_c.
+\end{equation}
+This allows the message to pass with low distortion while keeping most
+carrier-related components out of the output.
+
+Filter order also matters:
+\begin{itemize}
+\item higher order improves stopband rejection,
+\item but higher order also increases phase delay and transient settling.
+\end{itemize}
+Butterworth filters are attractive in this lab because their passband is
+maximally flat, which helps preserve message amplitude over the baseband range
+of interest.
+
+\subsection{Noise Effects in AM Systems}
+
+Noise affects the two methods differently:
+\begin{itemize}
+\item envelope detection directly tracks amplitude, so amplitude noise appears
+strongly at the output,
+\item coherent detection is usually more robust because synchronized mixing and
+low-pass filtering give better selectivity against out-of-band components.
+\end{itemize}
+
+In both cases, increasing $A_m$ and therefore increasing $\mu$ makes the
+recovered message more visible. At very small $\mu$, the desired baseband can be
+visually dominated by noise even when the AM signal is still present. For the
+envelope detector, this improvement only remains meaningful while the
+no-inversion condition $\mu \le 1$ is still satisfied.
+
+\subsection{Approximate Noise Performance of the Two Demodulators}
+\label{sec:lab2_noise_performance}
+
+To connect the theory to the later experimental noise observations, let the
+received AM signal be
+\begin{equation}
+r(t)=s(t)+n(t),
+\end{equation}
+where $n(t)$ is additive bandpass noise around the carrier. Around $f_c$, it is
+convenient to write the noise in in-phase and quadrature form as
+\begin{equation}
+n(t)=n_I(t)\cos(2\pi f_c t)-n_Q(t)\sin(2\pi f_c t),
+\end{equation}
+with $n_I(t)$ and $n_Q(t)$ low-pass noise processes.
+
+\subsubsection{Coherent Demodulation}
+
+With perfect carrier synchronization, the receiver multiplies by
+$\cos(2\pi f_c t)$ and then low-pass filters. The output becomes
+\begin{equation}
+y_c(t)\approx \frac{1}{2}\left[A_c+A_m m(t)\right]+\frac{1}{2}n_I(t).
+\end{equation}
+After DC removal, the useful part is
+\begin{equation}
+y_{c,\mathrm{sig}}(t)\approx \frac{A_m}{2}m(t),
+\end{equation}
+and the output noise is approximately
+\begin{equation}
+y_{c,\mathrm{noise}}(t)\approx \frac{1}{2}n_I(t).
+\end{equation}
+
+If the message has average power $P_m=\mathbb{E}[m^2(t)]$, then the coherent
+detector output SNR is
+\begin{equation}
+\mathrm{SNR}_{c,\mathrm{out}}
+\approx
+\frac{(A_m^2/4)P_m}{\sigma_{n_I}^2/4}
+=
+\frac{A_m^2 P_m}{\sigma_{n_I}^2}.
+\label{eq:lab2_snr_coherent}
+\end{equation}
+So, for fixed noise power and fixed carrier amplitude, the coherent-detector
+output SNR grows proportionally to $A_m^2$, equivalently to $\mu^2$.
+
+\subsubsection{Envelope Detection}
+
+For envelope detection, assume the noise is small compared with the carrier and
+the modulation stays within $\mu \le 1$. Then the noisy envelope can be
+linearized as
+\begin{equation}
+\lvert r(t)\rvert
+\approx
+A_c+A_m m(t)+n_I(t).
+\end{equation}
+After low-pass filtering, DC removal, and amplitude correction, the baseband
+output is approximately
+\begin{equation}
+y_e(t)\approx A_m m(t)+n_I(t).
+\end{equation}
+The corresponding first-order output SNR is therefore
+\begin{equation}
+\mathrm{SNR}_{e,\mathrm{out}}
+\approx
+\frac{A_m^2 P_m}{\sigma_{n_I}^2}.
+\label{eq:lab2_snr_envelope}
+\end{equation}
+
+This shows that envelope detection has the same leading $\mu^2$ scaling under
+high-SNR conditions. However, unlike coherent detection, it is nonlinear. Once
+the carrier becomes weak relative to the noise, or when $\mu > 1$, neglected
+higher-order terms become important and the envelope detector develops extra
+distortion and a threshold-like breakdown. That is why coherent detection is
+usually more robust in practice even though the first-order scaling laws look
+similar.
+
+\subsubsection{Interpretation for the Lab Results}
+
+Equations~\eqref{eq:lab2_snr_coherent} and \eqref{eq:lab2_snr_envelope} imply
+that for fixed noise level
+\begin{equation}
+\mathrm{SNR}_{\mathrm{out}} \propto \mu^2.
+\end{equation}
+Therefore:
+\begin{itemize}
+\item reducing $\mu$ from $1$ to $0.5$ reduces output SNR by a factor of $4$,
+that is about $6$ dB,
+\item reducing $\mu$ from $1$ to $0.2$ reduces output SNR by a factor of $25$,
+that is about $14$ dB.
+\end{itemize}
+This matches the experimental observation that the received waveform becomes
+progressively noisier as $\mu$ is reduced.
+
+\subsection{Detailed Output SNR Models Under AWGN}
+\label{sec:lab2_awgn_snr_models}
+
+The earlier discussion established the main qualitative noise trends. The
+following note now derives, step by step, the output SNR models for baseband
+transmission, DSB-SC, and conventional AM under additive white Gaussian noise.
+Throughout, the comparison reference is the \emph{baseband output SNR}
+\begin{equation}
+\left(\frac{S}{N}\right)_{\mathrm{baseband}}
+=
+\frac{P}{N_0 W},
+\end{equation}
+where $P=\mathbb{E}[m^2(t)]$ is the message power and the receiver output is
+assumed bandlimited to the message band $\lvert f \rvert \leq W$.
+
+\begin{tcolorbox}[breakable, colback=cyan!4!white, colframe=cyan!60!black,
+title={\textbf{Intuition: Step-by-Step Output SNR Models Under AWGN}}]
+\textbf{Common assumptions.}
+\begin{itemize}
+\item $m(t)$ is real, zero-mean, and bandlimited to $W$ Hz.
+\item $P = \mathbb{E}[m^2(t)]$ denotes the message power.
+\item $\omega_c = 2\pi f_c$ denotes carrier angular frequency.
+\item The additive noise is AWGN with two-sided PSD $N_0/2$.
+\item For the bandpass cases, after ideal bandpass selection around $\pm f_c$,
+the narrowband noise is written as
+\begin{equation}
+n(t)=n_I(t)\cos(\omega_c t)-n_Q(t)\sin(\omega_c t),
+\end{equation}
+where $n_I(t)$ and $n_Q(t)$ are zero-mean low-pass Gaussian processes with
+two-sided PSD $N_0/2$ over $\lvert f \rvert \leq W$.
+\item Consequently, either low-pass noise component has power
+\begin{equation}
+\mathbb{E}[n_I^2(t)] = \mathbb{E}[n_Q^2(t)] = \int_{-W}^{W}\frac{N_0}{2}\,df = N_0 W.
+\end{equation}
+\end{itemize}
+
+\textbf{1. Baseband transmission}
+
+\emph{Transmitted signal model.}
+\begin{equation}
+s_{\mathrm{bb}}(t)=m(t).
+\end{equation}
+The transmitted signal power is therefore
+\begin{equation}
+\mathbb{E}[s_{\mathrm{bb}}^2(t)] = \mathbb{E}[m^2(t)] = P.
+\end{equation}
+
+\emph{Received signal model.}
+\begin{equation}
+r_{\mathrm{bb}}(t)=m(t)+n_{\mathrm{bb}}(t),
+\end{equation}
+where the baseband noise $n_{\mathrm{bb}}(t)$ has two-sided PSD $N_0/2$ over
+$\lvert f \rvert \leq W$.
+
+\emph{Demodulator model.}
+For direct baseband transmission, the receiver is simply an ideal low-pass
+output stage. Thus
+\begin{equation}
+y_{\mathrm{bb}}(t)=r_{\mathrm{bb}}(t)=m(t)+n_{\mathrm{bb}}(t).
+\end{equation}
+
+\emph{Output signal term.}
+\begin{equation}
+y_{\mathrm{bb, sig}}(t)=m(t).
+\end{equation}
+Its power is $P$ by definition.
+
+\emph{Output noise term.}
+\begin{equation}
+y_{\mathrm{bb, noise}}(t)=n_{\mathrm{bb}}(t).
+\end{equation}
+
+\emph{Output noise power.}
+\begin{equation}
+P_{\mathrm{n,bb}}
+=
+\int_{-W}^{W}\frac{N_0}{2}\,df
+=
+N_0 W.
+\end{equation}
+This is the reference noise power over the message band.
+
+\emph{Output SNR.}
+\begin{equation}
+\left(\frac{S}{N}\right)_{\mathrm{bb}}
+=
+\frac{P}{N_0 W}.
+\label{eq:lab2_snr_baseband_reference}
+\end{equation}
+This is the baseline quantity against which all later schemes are compared.
+
+\textbf{2. DSB-SC with coherent detection}
+
+\emph{Transmitted signal model.}
+\begin{equation}
+s_{\mathrm{DSB}}(t)=m(t)\cos(\omega_c t).
+\end{equation}
+
+\emph{Received signal model.}
+\begin{equation}
+r_{\mathrm{DSB}}(t)=m(t)\cos(\omega_c t)+n(t).
+\end{equation}
+Using the narrowband noise representation,
+\begin{equation}
+r_{\mathrm{DSB}}(t)
+=
+m(t)\cos(\omega_c t)
++n_I(t)\cos(\omega_c t)-n_Q(t)\sin(\omega_c t).
+\end{equation}
+
+\emph{Demodulator model.}
+To recover the message without amplitude loss, use a coherent local oscillator
+$2\cos(\omega_c t)$ followed by an ideal low-pass filter:
+\begin{equation}
+y_{\mathrm{DSB}}(t)=\mathrm{LPF}\left\{2r_{\mathrm{DSB}}(t)\cos(\omega_c t)\right\}.
+\end{equation}
+
+\emph{Output signal term.}
+First expand the signal part:
+\begin{align}
+2m(t)\cos(\omega_c t)\cos(\omega_c t)
+&=
+2m(t)\cos^2(\omega_c t)\nonumber\\
+&=
+m(t)\left[1+\cos(2\omega_c t)\right].
+\end{align}
+After low-pass filtering, the term at $2\omega_c$ is removed, so
+\begin{equation}
+\mathrm{LPF}\left\{2m(t)\cos^2(\omega_c t)\right\}=m(t).
+\end{equation}
+Thus the recovered signal term is exactly
+\begin{equation}
+y_{\mathrm{DSB, sig}}(t)=m(t).
+\end{equation}
+
+\emph{Output noise term.}
+Now expand the noise contribution:
+\begin{align}
+2n(t)\cos(\omega_c t)
+=\;&
+2n_I(t)\cos^2(\omega_c t)
+-2n_Q(t)\sin(\omega_c t)\cos(\omega_c t)\nonumber\\
+=\;&
+n_I(t)\left[1+\cos(2\omega_c t)\right]
+-n_Q(t)\sin(2\omega_c t).
+\end{align}
+After low-pass filtering, only the low-frequency in-phase component remains:
+\begin{equation}
+y_{\mathrm{DSB, noise}}(t)=n_I(t).
+\end{equation}
+
+\emph{Output noise power.}
+Since $n_I(t)$ has two-sided PSD $N_0/2$ over the message band,
+\begin{equation}
+P_{\mathrm{n,DSB}}
+=
+\mathbb{E}[n_I^2(t)]
+=
+N_0 W.
+\end{equation}
+
+\emph{Output SNR.}
+\begin{equation}
+\left(\frac{S}{N}\right)_{\mathrm{DSB-SC}}
+=
+\frac{P}{N_0 W}.
+\end{equation}
+
+\emph{Comparison with baseband.}
+\begin{equation}
+\left(\frac{S}{N}\right)_{\mathrm{DSB-SC}}
+=
+\left(\frac{S}{N}\right)_{\mathrm{baseband}}.
+\end{equation}
+So ideal coherent DSB-SC detection preserves the baseband SNR exactly.
+
+\textbf{3. Conventional full AM with coherent detection}
+
+\emph{Transmitted signal model.}
+\begin{equation}
+s_{\mathrm{AM}}(t)=\left[A_c+m(t)\right]\cos(\omega_c t).
+\end{equation}
+
+The total transmitted AM power is
+\begin{align}
+P_{\mathrm{T,AM}}
+&=
+\mathbb{E}[s_{\mathrm{AM}}^2(t)]\nonumber\\
+&=
+\mathbb{E}\!\left[(A_c+m(t))^2\cos^2(\omega_c t)\right]\nonumber\\
+&=
+\frac{1}{2}\mathbb{E}\!\left[A_c^2+2A_c m(t)+m^2(t)\right]\nonumber\\
+&=
+\frac{1}{2}\left(A_c^2+P\right),
+\end{align}
+because $\mathbb{E}[m(t)]=0$.
+
+Therefore the carrier power is
+\begin{equation}
+P_c=\frac{A_c^2}{2},
+\end{equation}
+and the sideband power is
+\begin{equation}
+P_{\mathrm{SB}}=P_{\mathrm{T,AM}}-P_c=\frac{P}{2}.
+\end{equation}
+This already shows that only the sideband part is associated with the message.
+
+\emph{Received signal model.}
+\begin{equation}
+r_{\mathrm{AM}}(t)=\left[A_c+m(t)\right]\cos(\omega_c t)+n(t).
+\end{equation}
+
+\emph{Demodulator model.}
+Use the same coherent local oscillator and low-pass filter:
+\begin{equation}
+y_{\mathrm{AM,coh}}(t)=\mathrm{LPF}\left\{2r_{\mathrm{AM}}(t)\cos(\omega_c t)\right\}.
+\end{equation}
+
+\emph{Output signal term before DC removal.}
+Expanding the desired part gives
+\begin{align}
+2\left[A_c+m(t)\right]\cos^2(\omega_c t)
+&=
+\left[A_c+m(t)\right]\left[1+\cos(2\omega_c t)\right].
+\end{align}
+After low-pass filtering,
+\begin{equation}
+\mathrm{LPF}\left\{2\left[A_c+m(t)\right]\cos^2(\omega_c t)\right\}
+=
+A_c+m(t).
+\end{equation}
+Thus the coherent detector output contains a DC term and the message term.
+
+\emph{Output noise term.}
+The bandpass noise goes through exactly the same algebra as in DSB-SC:
+\begin{equation}
+\mathrm{LPF}\left\{2n(t)\cos(\omega_c t)\right\}=n_I(t).
+\end{equation}
+So the output before DC removal is
+\begin{equation}
+y_{\mathrm{AM,coh}}(t)=A_c+m(t)+n_I(t).
+\end{equation}
+
+\emph{After DC removal.}
+The carrier contribution $A_c$ carries no message information and is removed by
+the DC-blocking stage. Therefore the useful recovered output is
+\begin{equation}
+\tilde{y}_{\mathrm{AM,coh}}(t)=m(t)+n_I(t).
+\end{equation}
+
+\emph{Output signal term.}
+\begin{equation}
+\tilde{y}_{\mathrm{AM,coh,sig}}(t)=m(t).
+\end{equation}
+
+\emph{Output noise term.}
+\begin{equation}
+\tilde{y}_{\mathrm{AM,coh,noise}}(t)=n_I(t).
+\end{equation}
+
+\emph{Output noise power.}
+\begin{equation}
+P_{\mathrm{n,AM,coh}}=N_0 W.
+\end{equation}
+
+\emph{Raw detector output SNR.}
+\begin{equation}
+\left(\frac{S}{N}\right)_{\mathrm{AM,coh,raw}}
+=
+\frac{P}{N_0 W}
+=
+\left(\frac{S}{N}\right)_{\mathrm{baseband}}.
+\end{equation}
+So, for a fixed message waveform $m(t)$, ideal coherent detection recovers the
+same post-detection SNR as the baseband reference.
+
+\emph{Power-efficiency form relative to total transmitted AM power.}
+The subtle point is that conventional AM expends total transmitted power
+\begin{equation}
+P_{\mathrm{T,AM}}=\frac{A_c^2+P}{2},
+\end{equation}
+while only the sideband power
+\begin{equation}
+P_{\mathrm{SB}}=\frac{P}{2}
+\end{equation}
+is associated with the information-bearing component. Hence the useful fraction
+of transmitted AM power is
+\begin{equation}
+\frac{P_{\mathrm{SB}}}{P_{\mathrm{T,AM}}}
+=
+\frac{P/2}{(A_c^2+P)/2}
+=
+\frac{P}{A_c^2+P}.
+\end{equation}
+Therefore, when the comparison is stated \emph{relative to total transmitted
+AM power}, the standard coherent-AM relation is
+\begin{equation}
+\left(\frac{S}{N}\right)_{\mathrm{AM,coherent}}
+=
+\frac{P}{A_c^2+P}
+\left(\frac{S}{N}\right)_{\mathrm{baseband}}.
+\label{eq:lab2_awgn_am_coh_efficiency}
+\end{equation}
+The loss is entirely due to the carrier-power term $A_c^2/2$, which carries no
+message information.
+
+\textbf{4. Conventional full AM with envelope detection}
+
+\emph{Transmitted signal model.}
+\begin{equation}
+s_{\mathrm{AM}}(t)=\left[A_c+m(t)\right]\cos(\omega_c t).
+\end{equation}
+The same AM power split derived above still applies:
+\begin{equation}
+P_{\mathrm{T,AM}}=\frac{A_c^2+P}{2},
+\qquad
+P_{\mathrm{SB}}=\frac{P}{2}.
+\end{equation}
+
+\emph{Received signal model.}
+\begin{equation}
+r_{\mathrm{AM}}(t)=\left[A_c+m(t)\right]\cos(\omega_c t)+n(t).
+\end{equation}
+Insert the narrowband noise decomposition:
+\begin{align}
+r_{\mathrm{AM}}(t)
+=\;&
+\left[A_c+m(t)\right]\cos(\omega_c t)
++n_I(t)\cos(\omega_c t)-n_Q(t)\sin(\omega_c t)\nonumber\\
+=\;&
+\left[A_c+m(t)+n_I(t)\right]\cos(\omega_c t)-n_Q(t)\sin(\omega_c t).
+\end{align}
+
+\emph{Envelope-detector model.}
+The ideal envelope detector outputs the magnitude of the I/Q vector. Therefore,
+up to this point, the following equation is exact:
+\begin{equation}
+v(t)=\sqrt{\left(A_c+m(t)+n_I(t)\right)^2+n_Q^2(t)}.
+\label{eq:lab2_awgn_env_exact}
+\end{equation}
+
+\emph{Large-carrier / high-SNR approximation.}
+Define
+\begin{equation}
+x(t)=A_c+m(t).
+\end{equation}
+Then \eqref{eq:lab2_awgn_env_exact} becomes
+\begin{align}
+v(t)
+&=
+\sqrt{\left(x(t)+n_I(t)\right)^2+n_Q^2(t)}\nonumber\\
+&=
+\sqrt{x^2(t)+2x(t)n_I(t)+n_I^2(t)+n_Q^2(t)}\nonumber\\
+&=
+x(t)\sqrt{1+\frac{2n_I(t)}{x(t)}
++\frac{n_I^2(t)+n_Q^2(t)}{x^2(t)}}.
+\end{align}
+
+Now let
+\begin{equation}
+u(t)=\frac{2n_I(t)}{x(t)}+\frac{n_I^2(t)+n_Q^2(t)}{x^2(t)}.
+\end{equation}
+If the carrier is strong, the post-detection SNR is high, and there is no
+overmodulation so that $x(t)=A_c+m(t)$ stays positive and large, then
+$\lvert u(t)\rvert \ll 1$. We may therefore use the first-order Taylor
+expansion
+\begin{equation}
+\sqrt{1+u}\approx 1+\frac{u}{2}.
+\end{equation}
+Substituting this into the envelope expression gives
+\begin{align}
+v(t)
+&\approx
+x(t)\left[1+\frac{1}{2}u(t)\right]\nonumber\\
+&=
+x(t)\left[
+1+\frac{n_I(t)}{x(t)}
++\frac{n_I^2(t)+n_Q^2(t)}{2x^2(t)}
+\right].
+\end{align}
+
+Keeping only first-order terms in the noise means dropping the quadratic terms
+$n_I^2(t)$ and $n_Q^2(t)$. Hence
+\begin{equation}
+v(t)\approx x(t)+n_I(t)=A_c+m(t)+n_I(t).
+\label{eq:lab2_awgn_env_first_order}
+\end{equation}
+This is the key approximation step: it is not exact, and it is only valid for
+high SNR, strong carrier, and no overmodulation.
+
+\emph{After DC removal.}
+Removing the large carrier-related DC term yields the approximate recovered
+baseband model
+\begin{equation}
+\tilde{y}_{\mathrm{AM,env}}(t)\approx m(t)+n_I(t).
+\end{equation}
+
+\emph{Output signal term.}
+\begin{equation}
+\tilde{y}_{\mathrm{AM,env,sig}}(t)\approx m(t).
+\end{equation}
+
+\emph{Output noise term.}
+\begin{equation}
+\tilde{y}_{\mathrm{AM,env,noise}}(t)\approx n_I(t).
+\end{equation}
+To first order, only the in-phase noise component appears in the recovered
+signal. The quadrature term $n_Q(t)$ enters only through the neglected
+second-order terms.
+
+\emph{Output noise power.}
+\begin{equation}
+P_{\mathrm{n,AM,env}}\approx N_0 W.
+\end{equation}
+
+\emph{Approximate output SNR.}
+\begin{equation}
+\left(\frac{S}{N}\right)_{\mathrm{AM,env,raw}}
+\approx
+\frac{P}{N_0 W}
+=
+\left(\frac{S}{N}\right)_{\mathrm{baseband}}.
+\end{equation}
+So, at first order and under strong-carrier conditions, the recovered
+signal-plus-noise model is the same as the coherent result.
+
+\emph{Power-efficiency form relative to total transmitted AM power.}
+Because the transmitted conventional-AM power split is unchanged, the standard
+power-efficiency statement is
+\begin{equation}
+\left(\frac{S}{N}\right)_{\mathrm{AM,env}}
+\approx
+\frac{P}{A_c^2+P}
+\left(\frac{S}{N}\right)_{\mathrm{baseband}}.
+\label{eq:lab2_awgn_am_env_efficiency}
+\end{equation}
+
+\emph{Figure of merit in terms of modulation index.}
+For a single-tone message
+\begin{equation}
+m(t)=A_m\cos(\omega_m t),
+\end{equation}
+the message power is
+\begin{equation}
+P=\frac{A_m^2}{2}.
+\end{equation}
+If the modulation index is defined by
+\begin{equation}
+\mu=\frac{A_m}{A_c},
+\end{equation}
+then
+\begin{equation}
+P=\frac{A_c^2\mu^2}{2}.
+\end{equation}
+Substituting this into the efficiency factor gives
+\begin{equation}
+\frac{P}{A_c^2+P}
+=
+\frac{A_c^2\mu^2/2}{A_c^2+A_c^2\mu^2/2}
+=
+\frac{\mu^2}{2+\mu^2}.
+\end{equation}
+Hence the standard high-SNR envelope-detector figure of merit is
+\begin{equation}
+\left(\frac{S}{N}\right)_{\mathrm{AM,env}}
+\approx
+\frac{\mu^2}{2+\mu^2}
+\left(\frac{S}{N}\right)_{\mathrm{baseband}}.
+\end{equation}
+
+\emph{Why envelope detection becomes worse at low carrier-to-noise ratio.}
+The approximation in \eqref{eq:lab2_awgn_env_first_order} breaks down once the
+carrier is no longer dominant. Then the neglected terms involving $n_Q^2(t)$,
+$n_I^2(t)$, and the fluctuating denominator $A_c+m(t)$ are no longer small.
+The envelope is no longer well approximated by a linear model, so the detector
+develops distortion and a sharp threshold effect. This is why envelope detection
+is usually inferior to coherent detection at low carrier-to-noise ratio, even
+though their first-order high-SNR formulas look similar.
+\end{tcolorbox}
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{0.16\linewidth}|>{\raggedright\arraybackslash}p{0.18\linewidth}|>{\raggedright\arraybackslash}p{0.28\linewidth}|>{\raggedright\arraybackslash}p{0.28\linewidth}|}
+\hline
+\textbf{Scheme} & \textbf{Demodulation} & \textbf{Output SNR} & \textbf{Relative efficiency / comments} \\
+\hline
+Baseband transmission & Direct baseband output & $\dfrac{P}{N_0 W}$ & Reference case. All transmitted power is useful message power. \\
+\hline
+DSB-SC & Ideal coherent detection & $\dfrac{P}{N_0 W}$ & Same output SNR as baseband. No carrier-power waste. \\
+\hline
+Conventional full AM & Coherent detection & Raw detector output: $\dfrac{P}{N_0 W}$. \newline Power-efficiency form: $\dfrac{P}{A_c^2+P}\left(\dfrac{S}{N}\right)_{\mathrm{baseband}}$ & Carrier power $A_c^2/2$ carries no information, so conventional AM is power-inefficient. \\
+\hline
+Conventional full AM & Envelope detection & First-order high-SNR result: $\dfrac{P}{N_0 W}$. \newline Power-efficiency form: $\approx \dfrac{P}{A_c^2+P}\left(\dfrac{S}{N}\right)_{\mathrm{baseband}}$ & Approximate result only. Valid for strong carrier, no overmodulation, and high CNR. Threshold effect causes clear degradation at low CNR. \\
+\hline
+\end{tabular}
+\caption{Summary of output-SNR models under AWGN for the main AM-related schemes.}
+\label{tab:lab2_awgn_snr_summary}
+\end{table}

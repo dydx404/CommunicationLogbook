@@ -1,0 +1,65 @@
+\documentclass[11pt,a4paper]{report}
+
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{placeins}
+\usepackage{geometry}
+\usepackage{mdframed}
+\usepackage[most]{tcolorbox}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage[hypertexnames=false]{hyperref}
+\usepackage{subfiles}
+\usepackage{siunitx}
+
+\geometry{margin=1in}
+
+\title{Communication Lab Notes}
+\author{Group Name}
+\date{\today}
+
+\newcommand{\labincludegraphics}[2][]{%
+  \IfFileExists{\subfix{#2}}{%
+    \includegraphics[#1]{\subfix{#2}}%
+  }{%
+    \fbox{%
+      \begin{minipage}[c][0.24\textheight][c]{0.82\linewidth}
+        \centering
+        Missing figure\\[0.5em]
+        \texttt{\detokenize{#2}}
+      \end{minipage}%
+    }%
+  }%
+}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+\input{sections/introduction}
+
+\clearpage
+\subfile{labs/lab1/main}
+
+\clearpage
+\subfile{labs/lab2/main}
+
+\clearpage
+\subfile{labs/lab3/main}
+
+\clearpage
+\subfile{labs/lab4/main}
+
+
+
+% Uncomment once the combined report starts using citations.
+% \bibliographystyle{IEEEtran}
+% \bibliography{references}
+
+\end{document}

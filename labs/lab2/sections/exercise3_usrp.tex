@@ -1,0 +1,188 @@
+\section{Exercise 3: AM Communication via USRP}
+\label{sec:lab2_ex3}
+
+\subsection{Task 1: Functional Understanding of TX and RX Modules}
+
+The final part of the lab studies how the provided USRP transmitter and receiver
+modules implement AM communication in practice.
+
+\subsection{USRP Transmitter}
+
+Functionally, the transmitter VI performs the following steps:
+\begin{enumerate}
+\item open a TX session to the selected USRP device,
+\item configure radio parameters such as IQ rate, carrier frequency, gain, and
+active antenna,
+\item generate the baseband message waveform inside a loop from the selected
+message frequency, sample rate, and sample count,
+\item apply the modulation index to produce the AM baseband signal,
+\item stream the signal continuously using the TX write block so the USRP can
+upconvert and transmit it at RF,
+\item stop cleanly and close the session when requested.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\labincludegraphics[width=\linewidth]{figures/usrp_tx_vi.png}
+\caption{USRP AM transmitter VI block diagram.}
+\label{fig:lab2_usrp_tx_vi}
+\end{figure}
+
+In this implementation the VI generates the baseband term
+\begin{equation}
+g(t)=1+\mu\,m(t),
+\end{equation}
+while the actual RF modulation onto the carrier is performed by the USRP
+hardware.
+
+\begin{tcolorbox}[breakable, colback=green!5!white,
+colframe=green!60!black,
+title={\textbf{Intuition: Baseband Signal Generation in the USRP Transmitter}}]
+The general AM signal is
+\begin{equation}
+s(t)=\left[A_c + A_m m(t)\right]\cos(2\pi f_c t)
+=A_c\left[1+\mu\,m(t)\right]\cos(2\pi f_c t).
+\end{equation}
+In the USRP implementation used here, two simplifications apply:
+\begin{itemize}
+\item the carrier amplitude is normalized to $A_c=1$ in the baseband signal,
+\item the multiplication by $\cos(2\pi f_c t)$ is performed internally by the
+USRP hardware rather than explicitly in LabVIEW.
+\end{itemize}
+Therefore the VI only needs to generate
+\begin{equation}
+g(t)=1+\mu\,m(t),
+\end{equation}
+which becomes the real part of the complex IQ stream delivered to the USRP. The
+hardware then upconverts that baseband waveform to the configured RF carrier.
+\end{tcolorbox}
+
+\subsection{USRP Receiver}
+
+The receiver VI performs:
+\begin{enumerate}
+\item opening an RX session and configuring the IQ rate, carrier frequency, gain,
+and active antenna,
+\item starting reception and repeatedly fetching blocks of received samples,
+\item applying baseband post-processing such as low-pass filtering, DC removal,
+and PSD estimation,
+\item displaying the demodulated signal in both time and frequency domains,
+\item aborting acquisition and closing the session cleanly on stop.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\labincludegraphics[width=\linewidth]{figures/usrp_rx_vi.png}
+\caption{USRP AM receiver VI block diagram.}
+\label{fig:lab2_usrp_rx_vi}
+\end{figure}
+
+\subsection{How TX and RX Work Together}
+
+The transmitter supplies the USRP with IQ data representing the AM baseband
+signal. The hardware then performs RF transmission around the configured carrier
+frequency. At the receiving side, the USRP returns baseband samples centered on
+that carrier, and the receiver VI completes the recovery through filtering,
+offset removal, and visualization.
+
+This is why the modules are mainly configuration, streaming, and baseband
+post-processing pipelines rather than full RF implementations in LabVIEW code.
+
+\subsection{Task 2: Single-Tone Transmission and Recovery}
+
+For the single-tone transmission task, the transmitter sends an AM tone and the
+receiver output is observed in time and frequency domains.
+
+The expected and reported behaviour is:
+\begin{itemize}
+\item the demodulated time-domain waveform is sinusoidal, indicating successful
+recovery of the message,
+\item the demodulated PSD shows a dominant peak at the message frequency, around
+$1~\text{kHz}$ in the reference capture.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\linewidth}
+\centering
+\labincludegraphics[width=\linewidth]{figures/ex3_task2_tx_panel.png}
+\caption{USRP TX panel during single-tone transmission.}
+\label{fig:lab2_ex3_task2_tx}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.49\linewidth}
+\centering
+\labincludegraphics[width=\linewidth]{figures/ex3_task2_rx_panel.png}
+\caption{USRP RX panel showing recovered signal and PSD.}
+\label{fig:lab2_ex3_task2_rx}
+\end{subfigure}
+\caption{Exercise 3 Task 2 capture for single-tone transmission and reception.}
+\label{fig:lab2_ex3_task2}
+\end{figure}
+
+This confirms that the full TX/RX chain is operating correctly: the transmitter
+sends an AM-modulated tone and the receiver recovers the baseband message.
+
+\subsection{Task 3: Noise Effect Versus Modulation Index}
+
+To study noise sensitivity, the receiver gain is increased and the modulation
+index is varied. The reference observations can be summarized as follows:
+\begin{itemize}
+\item at $\mu = 1$, the recovered sinusoid is strongest relative to noise and
+appears the cleanest,
+\item at $\mu = 0.5$, the desired signal amplitude is lower, so noise becomes
+more visible,
+\item at $\mu = 0.2$, the message component is weakest and waveform perturbations
+from noise are clearly noticeable.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\linewidth}
+\centering
+\labincludegraphics[width=\linewidth]{figures/ex3_task3_mu_1.png}
+\caption{$\mu = 1$.}
+\label{fig:lab2_ex3_mu1}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.49\linewidth}
+\centering
+\labincludegraphics[width=\linewidth]{figures/ex3_task3_mu_05.png}
+\caption{$\mu = 0.5$.}
+\label{fig:lab2_ex3_mu05}
+\end{subfigure}
+
+\vspace{0.5em}
+
+\begin{subfigure}{0.65\linewidth}
+\centering
+\labincludegraphics[width=\linewidth]{figures/ex3_task3_mu_02.png}
+\caption{$\mu = 0.2$.}
+\label{fig:lab2_ex3_mu02}
+\end{subfigure}
+\caption{Exercise 3 Task 3: demodulated output under increased receiver gain for different modulation indices.}
+\label{fig:lab2_ex3_task3}
+\end{figure}
+
+The reason is that the recovered message amplitude scales with $\mu$, whereas the
+receiver noise does not decrease proportionally. As $\mu$ becomes smaller, the
+output signal-to-noise ratio deteriorates.
+
+This trend is consistent with the first-order derivation in
+Section~\ref{sec:lab2_noise_performance}: for fixed carrier amplitude and
+approximately fixed receiver noise level, the output SNR scales roughly as
+$\mu^2$. In practical terms, dropping from $\mu=1$ to $\mu=0.5$ corresponds to
+an SNR reduction of about $6$ dB, while dropping from $\mu=1$ to $\mu=0.2$
+costs about $14$ dB. That scaling explains why the $\mu=0.2$ capture appears
+substantially noisier than the $\mu=1$ case.
+
+\subsection{Discussion}
+
+The USRP experiment confirms the same trend already seen in simulation:
+\begin{itemize}
+\item stronger modulation improves message visibility,
+\item weaker modulation makes the recovered baseband increasingly sensitive to
+noise,
+\item hardware implementation follows the same AM theory, but now the effects are
+observed in a real transmission chain rather than only in simulation.
+\end{itemize}

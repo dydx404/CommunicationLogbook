@@ -1,0 +1,40 @@
+\documentclass[../../main.tex]{subfiles}
+
+\begin{document}
+
+\graphicspath{{labs/lab4/figures/}{figures/}}
+
+\makeatletter
+\@ifundefined{GoalBox}{%
+  \newtcolorbox{GoalBox}[1]{colback=blue!4, colframe=blue!55!black, title={#1}}%
+}{%
+  \renewtcolorbox{GoalBox}[1]{colback=blue!4, colframe=blue!55!black, title={#1}}%
+}
+\@ifundefined{KeyBox}{%
+  \newtcolorbox{KeyBox}[1]{colback=green!4, colframe=green!45!black, title={#1}}%
+}{%
+  \renewtcolorbox{KeyBox}[1]{colback=green!4, colframe=green!45!black, title={#1}}%
+}
+\@ifundefined{IntuitionBox}{%
+  \newtcolorbox{IntuitionBox}[1]{colback=orange!6, colframe=orange!60!black, title={#1}}%
+}{%
+  \renewtcolorbox{IntuitionBox}[1]{colback=orange!6, colframe=orange!60!black, title={#1}}%
+}
+\@ifundefined{SummaryBox}{%
+  \newtcolorbox{SummaryBox}[1]{colback=gray!6, colframe=gray!60!black, title={#1}}%
+}{%
+  \renewtcolorbox{SummaryBox}[1]{colback=gray!6, colframe=gray!60!black, title={#1}}%
+}
+\@ifundefined{DataBox}{%
+  \newtcolorbox{DataBox}[1]{colback=red!3, colframe=red!50!black, title={#1}, height=6cm, valign=center, halign=center, fontupper=\itshape\color{gray}}%
+}{%
+  \renewtcolorbox{DataBox}[1]{colback=red!3, colframe=red!50!black, title={#1}, height=6cm, valign=center, halign=center, fontupper=\itshape\color{gray}}%
+}
+\makeatother
+
+\chapter{Lab 4}
+\label{sec:lab4}
+
+\input{\subfix{body}}
+
+\end{document}

@@ -1,0 +1,116 @@
+\section{Exercise 2: AM Simulation}
+\label{sec:lab2_ex2}
+
+\subsection{Objective}
+
+Integrate the AM modulator and both demodulation sub-VIs into a single top-level
+simulation and compare coherent versus envelope detection as the modulation index
+changes.
+
+\subsection{Top-Level Design}
+
+The top-level VI:
+\begin{itemize}
+\item generates an AM waveform from message and carrier parameters,
+\item passes the same AM signal to coherent and envelope demodulators in
+parallel,
+\item displays time-domain and PSD outputs for direct comparison,
+\item runs continuously so parameter changes can be observed in real time.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\labincludegraphics[width=\linewidth]{figures/AM_top_level.png}
+\caption{Top-level AM simulation VI connecting modulation, coherent demodulation, and envelope detection.}
+\label{fig:lab2_am_top_level}
+\end{figure}
+
+\subsection{Parameter Set Used}
+
+To match the handout configuration, the simulation uses:
+\begin{itemize}
+\item carrier amplitude $A_c = 2$,
+\item message amplitude $A_m \in \{1,2,3,4\}$,
+\item sample frequency $f_s = 200~\text{kHz}$,
+\item number of samples $N = 1000$,
+\item carrier frequency $f_c = 10~\text{kHz}$,
+\item message frequency $f_m = 1~\text{kHz}$,
+\item low-pass filter order $= 5$,
+\item low-pass cutoff $= 3~\text{kHz}$.
+\end{itemize}
+
+The corresponding modulation indices are
+\begin{equation}
+\mu=\frac{A_m}{A_c}\in\{0.5,1.0,1.5,2.0\}.
+\end{equation}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\linewidth}
+\centering
+\labincludegraphics[width=\linewidth]{figures/ex2_amplitude_1.png}
+\caption{AM simulation result for $A_m = 1$ ($\mu = 0.5$).}
+\label{fig:lab2_ex2_am1}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.49\linewidth}
+\centering
+\labincludegraphics[width=\linewidth]{figures/ex2_amplitude_2.png}
+\caption{AM simulation result for $A_m = 2$ ($\mu = 1.0$).}
+\label{fig:lab2_ex2_am2}
+\end{subfigure}
+
+\vspace{0.5em}
+
+\begin{subfigure}{0.49\linewidth}
+\centering
+\labincludegraphics[width=\linewidth]{figures/ex2_amplitude_3.png}
+\caption{AM simulation result for $A_m = 3$ ($\mu = 1.5$).}
+\label{fig:lab2_ex2_am3}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.49\linewidth}
+\centering
+\labincludegraphics[width=\linewidth]{figures/ex2_amplitude_4.png}
+\caption{AM simulation result for $A_m = 4$ ($\mu = 2.0$).}
+\label{fig:lab2_ex2_am4}
+\end{subfigure}
+\caption{Top-level simulation captures used to compare coherent and envelope detection as message amplitude changes.}
+\label{fig:lab2_ex2_all_cases}
+\end{figure}
+
+\subsection{What Changes Between the Two Demodulation Techniques? Why?}
+
+As the message amplitude increases, the coherent demodulated sinusoid increases
+in amplitude approximately in proportion to $A_m/2$, which is consistent with
+the coherent detection result
+\begin{equation}
+y_{\mathrm{LPF}}(t)\approx \frac{1}{2}\left[A_c + A_m\cos(2\pi f_m t)\right]
+\end{equation}
+under synchronized carrier recovery.
+
+The main difference between the two demodulators is the waveform shape:
+\begin{itemize}
+\item \textbf{coherent demodulation} preserves the signed baseband waveform after
+DC removal,
+\item \textbf{envelope detection} preserves the magnitude variation of the
+envelope, so the recovered output tends to be positive-biased before DC removal.
+\end{itemize}
+
+\subsection{Effect of Modulation Index}
+
+For $\mu = 0.5$ and $\mu = 1.0$, envelope detection works well because the
+envelope does not invert. The coherent demodulator also works in both cases and
+produces a recovered sinusoid with the expected amplitude scaling.
+
+For $\mu = 1.5$ and $\mu = 2.0$, the system is over-modulated. Coherent
+demodulation still recovers the message because it does not rely on envelope
+shape alone, but the envelope detector becomes distorted because rectification
+cannot recover the original message once the envelope has inverted.
+
+\subsection{Discussion}
+
+This simulation confirms the main theoretical difference between the two
+demodulation techniques. Coherent detection is more faithful but requires
+carrier synchronization. Envelope detection is simpler, but its usable operating
+range is limited by the condition $\mu \le 1$.

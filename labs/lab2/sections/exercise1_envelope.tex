@@ -1,0 +1,60 @@
+\section{Exercise 1b: Envelope Detection}
+\label{sec:lab2_ex1b}
+
+\subsection{Objective}
+
+Implement an envelope detector using rectification and low-pass filtering, then
+compare its behaviour with coherent demodulation.
+
+\subsection{Module Design}
+
+The implemented signal flow is:
+\begin{enumerate}
+\item apply a pre-gain of $\pi$ to compensate the dominant rectification loss,
+\item convert the waveform into array form for sample-wise processing,
+\item perform half-wave rectification by setting negative samples to zero,
+\item rebuild the waveform while preserving its timing parameters,
+\item apply a Butterworth low-pass filter,
+\item remove the DC component and compute a PSD of the recovered signal.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\labincludegraphics[width=\linewidth]{figures/Envelope_Devodulation_VI.png}
+\caption{Block diagram of the envelope detection VI.}
+\label{fig:lab2_envelope_vi}
+\end{figure}
+
+\subsection{Link to Theory}
+
+Envelope detection works by extracting the slow variation of the AM envelope.
+Its validity depends on the no-inversion condition
+\begin{equation}
+\mu \le 1.
+\end{equation}
+For $\mu > 1$, the envelope inverts and strong distortion appears after
+rectification and filtering.
+
+The use of a $\pi$ pre-gain is consistent with the approximate rectification-loss
+model
+\begin{equation}
+\hat{e}(t)\approx \frac{1}{\pi}\left[A_c + A_m m(t)\right].
+\end{equation}
+
+\subsection{Implementation Notes}
+
+\begin{itemize}
+\item timing information must be preserved when converting between waveform and
+array representations, otherwise the recovered time and frequency axes become
+incorrect,
+\item the low-pass filter should pass the message bandwidth while rejecting
+carrier-related ripple,
+\item DC removal is required because the recovered envelope contains a large mean
+term related to the carrier amplitude.
+\end{itemize}
+
+\subsection{Expected Output}
+
+For $\mu \le 1$, the detector output should track the message envelope and show a
+dominant spectral component near $f_m$. As $\mu$ exceeds 1, visible distortion
+should remain even after filtering.

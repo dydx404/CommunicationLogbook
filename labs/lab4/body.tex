@@ -1,0 +1,2139 @@
+\section{Exercise 1: BPSK Transmitter : Conceptual Analysis}
+\label{sec:ex1-analysis}
+
+\begin{GoalBox}{Goal of Exercise 1 (What we build)}
+Implement a complete \textbf{BPSK transmitter} in discrete time, generate a \textbf{complex baseband} waveform, and feed it to the USRP which performs RF upconversion to the carrier frequency.
+\end{GoalBox}
+
+\subsection{BPSK Passband Signal Model}
+
+A BPSK waveform encodes information in the phase of the carrier:
+
+\begin{equation}
+s(t)=A\,g_{\text{TX}}(t)\cos\!\big(2\pi f_c t+\theta(t)\big),
+\end{equation}
+
+where $A$ sets transmit power, $g_{\text{TX}}(t)$ is the pulse shape, and for BPSK
+
+\begin{equation}
+\theta(t)\in\{0,\pi\}.
+\end{equation}
+
+Equivalently, using antipodal symbols $b(t)\in\{-1,+1\}$:
+
+\begin{equation}
+s(t)=A\,b(t)\,g_{\text{TX}}(t)\cos(2\pi f_c t).
+\end{equation}
+
+\subsection{Baseband (Linearly Modulated) Representation}
+
+Baseband digital modulation:
+
+\begin{equation}
+u(t)=\sum_{n=-\infty}^{\infty} b[n]\,g_{\text{TX}}(t-nT),
+\label{eq:linear_mod}
+\end{equation}
+
+where $T$ is the symbol duration (for BPSK, bit rate $=$ symbol rate $=1/T$).
+
+The passband BPSK signal is
+
+\begin{equation}
+s(t)=u(t)\cos(2\pi f_c t).
+\end{equation}
+
+\begin{KeyBox}{Key implementation idea}
+In this lab, we synthesize the (complex) baseband waveform. The USRP handles the carrier at $f_c$ (RF upconversion).
+\end{KeyBox}
+
+\subsection{Why Pulse Shaping? Why Not Just Send Spikes?}
+
+The most natural question is: if a symbol is just $+1$ or $-1$, why not transmit a sharp spike at each symbol time and let the receiver read it?
+
+\subsubsection{Spikes Require Infinite Bandwidth}
+
+A perfect spike (Dirac impulse) in time has a \textbf{flat spectrum}:
+
+\begin{equation}
+\delta(t) \;\longleftrightarrow\; 1 \quad \text{(all frequencies from 0 to } \infty\text{)}
+\end{equation}
+
+This means transmitting a spike requires \textbf{infinite bandwidth}. Real communication systems always have limited bandwidth: radio channels are regulated, antennas have finite bandwidth, and hardware filters cannot pass all frequencies. A spike simply cannot be transmitted through any real channel.
+
+Pulse shaping replaces the spike with a smooth, \textbf{band-limited} waveform that fits within the allocated bandwidth.
+
+\subsubsection{Spikes Cause Spectral Leakage}
+
+Even if we approximate a spike with a very short rectangular pulse (not infinitely narrow, but close), its Fourier transform is a sinc:
+
+\begin{equation}
+\text{short rectangle} \;\longleftrightarrow\; \mathrm{sinc}(fT)
+\end{equation}
+
+The sinc has sidelobes that decay slowly ($\sim 1/f$), spreading energy across a wide frequency range. This energy leaks into neighbouring channels and causes interference to other users sharing the spectrum.
+
+Pulse shaping (e.g.\ RRC) confines the signal energy within a controlled bandwidth, with rapid spectral roll-off and negligible sidelobes.
+
+\begin{KeyBox}{Three reasons we need pulse shaping}
+\begin{itemize}
+\item Spikes have infinite bandwidth $\rightarrow$ cannot be transmitted through real band-limited channels
+\item Short rectangular approximations have slow-decaying sidelobes $\rightarrow$ interfere with adjacent channels
+\item Uncontrolled pulse spreading through the channel causes ISI $\rightarrow$ pulse shaping lets us design the spreading to be ISI-free at sampling instants
+\end{itemize}
+\end{KeyBox}
+
+\subsection{Discrete-Time Sampling and Samples-per-Symbol}
+
+If the USRP IQ sample rate is $f_s$ and the symbol rate is $R_s=1/T$, then
+
+\begin{equation}
+L=\frac{f_s}{R_s}
+\label{eq:L}
+\end{equation}
+
+is the number of samples per symbol, and
+
+\begin{equation}
+T_s=\frac{1}{f_s}=\frac{T}{L}
+\label{eq:Ts}
+\end{equation}
+
+is the sampling interval.
+
+\subsection{Upsampling (Interpolation) for Pulse Shaping}
+
+Upsampling by $L$ means:
+
+\begin{itemize}
+\item Insert $L-1$ zeros between consecutive symbols $b[n]$
+\item This allows the pulse-shaping filter to create a smooth pulse per symbol
+\end{itemize}
+
+\subsection{Upsampling and Interpolation: How the Pulse is Built Digitally}
+\label{sec:interpolation}
+
+We now know \textbf{why} we need a smooth pulse. The question is: \textbf{how} do we create it digitally from a sequence of symbols?
+
+The answer is a two-step process called \textbf{interpolation}: upsampling followed by filtering.
+
+\subsubsection{Step 1: Upsampling: Creating Space for the Pulse}
+
+The symbol sequence $b[n]$ has \textbf{one sample per symbol}. For example, with 5 symbols:
+
+\begin{equation}
+b[n] = \{+1,\; -1,\; +1,\; +1,\; -1\}
+\end{equation}
+
+A digital filter needs multiple samples per symbol period to sculpt a smooth pulse shape. With only one sample per symbol, there are no intermediate points where the filter can create a curve.
+
+Upsampling by $L$ inserts $L - 1$ zeros between each symbol. In this lab, $L = 20$:
+
+\begin{equation}
+\{+1,\; -1,\; +1\} \;\;\xrightarrow{\text{upsample by } L = 20}\;\; \{+1,\; \underbrace{0, 0, \ldots, 0}_{19 \text{ zeros}},\; -1,\; \underbrace{0, 0, \ldots, 0}_{19 \text{ zeros}},\; +1\}
+\end{equation}
+
+The sampling rate is now $f_s = L \cdot R_s = 20 \times 10{,}000 = 200{,}000$ Samples/s, but the signal is mostly zeros.
+
+\begin{IntuitionBox}{Why zeros?}
+The zeros are \textbf{temporary placeholders}. They do not represent actual transmitted values. They simply create extra time points (higher time resolution) so that the pulse-shaping filter has enough samples per symbol period to draw a smooth curve.
+\end{IntuitionBox}
+
+\subsubsection{Step 2: RRC Filtering : Replacing Zeros with the Pulse Shape}
+
+The upsampled signal (symbols + zeros) is convolved with the RRC filter impulse response.
+Convolution means: each non-zero sample (each symbol) gets replaced by a scaled copy of the entire RRC pulse, and the results are summed.
+
+\begin{itemize}
+\item \textbf{Formula:} $f(t) * \delta(t) = f(t)$
+\item \textbf{Time Shift:} $f(t) * \delta(t - T_0) = f(t - T_0)$
+\end{itemize}
+
+\subsection{The Mathematical Model }
+
+In a digital communication system, the path from transmitter to receiver can be modelled as a chain of three linear filters:
+
+\begin{itemize}
+\item The \textbf{transmit filter} $h_{\text{TX}}(t)$: shapes each symbol into a waveform before transmission
+\item The \textbf{channel} $h_C(t)$: the physical medium (given by nature, not designed by us)
+\item The \textbf{receive filter} $h_{\text{RX}}(t)$: filters the received signal before sampling and decision
+\end{itemize}
+
+The input to this chain is a train of weighted impulses spaced $T$ apart (one per symbol):
+
+\begin{equation}
+x(t) = \sum_n b[n]\,\delta(t - nT), \qquad b[n] \in \{-1, +1\}
+\end{equation}
+
+Since the entire chain is linear, the output before noise is a series of convolutions:
+
+\begin{equation}
+y(t) = x(t) * h_{\text{TX}}(t) * h_C(t) * h_{\text{RX}}(t) \;+\; w(t) * h_{\text{RX}}(t)
+\end{equation}
+
+where $w(t)$ is receiver noise (AWGN) that passes through the receive filter.
+
+\begin{KeyBox}{Key idea: effective channel}
+We group all three filters into one \textbf{effective channel} impulse response:
+\begin{equation}
+p(t) = h_{\text{TX}}(t) * h_C(t) * h_{\text{RX}}(t)
+\end{equation}
+In the frequency domain, convolution becomes multiplication:
+\begin{equation}
+P(f) = H_{\text{TX}}(f) \cdot H_C(f) \cdot H_{\text{RX}}(f)
+\end{equation}
+The engineering problem is: \textbf{design $h_{\text{TX}}$ and $h_{\text{RX}}$} so that the overall pulse $p(t)$ has good properties. The channel $h_C$ is given to us.
+\end{KeyBox}
+
+\centering
+\includegraphics[width=0.8\textwidth]{fullfilterchain.png}\\[0.5em]
+
+\subsection{What is Inter-Symbol Interference (ISI)?}
+
+After the effective channel, the output sampled at time $t = kT$ is:
+
+\begin{KeyBox}{Derivation: from impulse train to received signal}
+The input to the system is a train of weighted impulses:
+\begin{equation}
+x(t) = \sum_n b[n]\,\delta(t - nT)
+\end{equation}
+The output is $y(t) = x(t) * p(t)$, where $p(t) = h_{\text{TX}}(t) * h_C(t) * h_{\text{RX}}(t)$ is the effective pulse. Substituting and using linearity of convolution:
+\begin{equation}
+y(t) = \left[\sum_n b[n]\,\delta(t - nT)\right] * p(t) = \sum_n b[n]\,\big[\delta(t - nT) * p(t)\big]
+\end{equation}
+Applying the time-shift property $f(t) * \delta(t - T_0) = f(t - T_0)$:
+\begin{equation}
+y(t) = \sum_n b[n]\,p(t - nT)
+\end{equation}
+Each symbol $b[n]$ stamps a shifted copy of the effective pulse $p(t)$ at position $nT$. The received signal is the superposition of all these shifted pulses.
+\end{KeyBox}
+
+\begin{equation}
+y(kT) = \sum_n b[n]\,p(kT - nT)
+= \underbrace{b[k]\,p(0)}_{\text{desired symbol : n =k }}
++ \underbrace{\sum_{n \neq k} b[n]\,p\big((k-n)T\big)}_{\text{ISI: tails from other symbols}}
+\end{equation}
+
+\begin{itemize}
+\item The first term $b[k]\,p(0)$ is the \textbf{desired symbol}
+\item The summation is the \textbf{ISI}: leftover contributions from every other symbol $b[n]$, weighted by the rest of the pulse $p\big((k-n)T\big)$
+\item If $p(t)$ has not decayed to zero at multiples of $T$, these tails corrupt the sample
+\end{itemize}
+
+\begin{GoalBox}{Nyquist ISI-Free Condition}
+ISI is completely eliminated if and only if the effective pulse satisfies:
+\begin{equation}
+p(nT) = \begin{cases} 1 & n = 0 \\ 0 & n \neq 0 \end{cases}
+\end{equation}
+When sampled at the correct instants $t = nT$, we see \textbf{only} the intended symbol with zero contribution from all neighbours.
+\end{GoalBox}
+
+The question now becomes: what shape should $p(t)$ have to satisfy this condition, while also being practical in terms of bandwidth and time duration?
+
+\subsection{Attempt 1: Rectangular (Square) Pulse}
+
+The simplest choice: the transmit filter outputs a constant pulse of duration $T$:
+
+\begin{equation}
+h_{\text{TX}}(t) = \begin{cases} 1 & 0 \leq t < T \\ 0 & \text{otherwise} \end{cases}
+\end{equation}
+
+If the channel is flat ($H_C(f) \approx 1$) and we choose the matched receive filter $h_{\text{RX}}(t) = h_{\text{TX}}(T - t)$ (also a square), then the effective pulse is their convolution:
+
+\begin{equation}
+p(t) = h_{\text{TX}}(t) * h_{\text{RX}}(t) = \text{triangle of width } 2T
+\end{equation}
+
+\centering
+\includegraphics[width=0.8\textwidth]{convolutionrectangle.png}\\[0.5em]
+
+In the time domain, this actually satisfies the Nyquist condition: the triangle is zero at $t = nT$ for $n \neq 0$. However, the problem is in the \textbf{frequency domain}.
+
+The Fourier transform of a square pulse is a sinc:
+
+\begin{equation}
+H_{\text{TX}}(f) = T\,\mathrm{sinc}(fT)
+\end{equation}
+
+Since the effective channel multiplies the two matched filters in frequency:
+
+\begin{equation}
+P(f) = H_{\text{TX}}(f) \cdot H_{\text{RX}}(f) = T^2\,\mathrm{sinc}^2(fT)
+\end{equation}
+
+\begin{itemize}
+\item The $\mathrm{sinc}^2$ spectrum has \textbf{infinite bandwidth}: the sidelobes decay slowly and never fully reach zero
+\item The total energy is not the problem, we can normalise any pulse to have the same energy. The problem is \textbf{where} that energy sits in frequency
+\item In a regulated radio system, we are allocated a specific frequency band (for example : 20 kHz). Any energy that falls outside that band leaks into the neighbour's channel and causes interference
+\item The rectangular pulse spreads energy across a much wider frequency range than necessary, wasting spectrum and disturbing adjacent users
+\end{itemize}
+
+\subsection{Attempt 2: Sinc Pulse (Ideal Bandlimited)}
+
+From Fourier theory, a rectangular shape in \textbf{frequency} corresponds to a sinc in time. If we choose the effective pulse to be:
+
+\begin{equation}
+p(t) = \mathrm{sinc}\!\left(\frac{t}{T}\right) = \frac{\sin(\pi t / T)}{\pi t / T}
+\end{equation}
+
+then in the frequency domain:
+
+\begin{equation}
+P(f) = \begin{cases} T & |f| < \dfrac{1}{2T} \\[0.5em] 0 & |f| > \dfrac{1}{2T} \end{cases}
+\end{equation}
+
+\begin{itemize}
+\item The spectrum is \textbf{perfectly band-limited} to bandwidth $W = 1/(2T)$
+\item Zero energy outside this band $\rightarrow$ \textbf{no interference} to adjacent channels
+\item The sinc also satisfies the Nyquist condition: $\mathrm{sinc}(n) = 0$ for all integers $n \neq 0$
+\end{itemize}
+
+This looks ideal, but there are two serious practical problems:
+
+\begin{itemize}
+\item The sinc extends to $t = \pm\infty$ in time $\rightarrow$ \textbf{cannot be implemented} as a finite filter; truncating it destroys the perfect band-limiting
+\item The sinc's zero crossings are very \textbf{steep}: a small timing error at the receiver means the sample lands slightly off $t = nT$, where the sinc has not decayed, producing significant ISI
+\end{itemize}
+
+\centering
+\includegraphics[width=0.8\textwidth]{sinc.png}\\[0.5em]
+{\small Figure: sinc function plotted on matlab}
+
+\subsection{The Compromise: Raised Cosine (RC) Pulse}
+
+The Raised Cosine pulse is a family of pulses parametrised by the \textbf{roll-off factor} $\alpha \in [0, 1]$:
+
+\begin{equation}
+P_{\text{RC}}(f) = \begin{cases}
+T & |f| \leq \dfrac{1-\alpha}{2T} \\[0.8em]
+\dfrac{T}{2}\left[1 + \cos\!\left(\dfrac{\pi T}{\alpha}\left(|f| - \dfrac{1-\alpha}{2T}\right)\right)\right] & \dfrac{1-\alpha}{2T} < |f| \leq \dfrac{1+\alpha}{2T} \\[0.8em]
+0 & |f| > \dfrac{1+\alpha}{2T}
+\end{cases}
+\end{equation}
+
+The occupied bandwidth is:
+
+\begin{equation}
+W = \frac{1+\alpha}{2T}
+\end{equation}
+
+\begin{itemize}
+\item When $\alpha = 0$: the RC reduces to the ideal sinc (rectangular spectrum, minimum bandwidth $1/(2T)$, but infinite time and steep crossings)
+\item When $\alpha = 1$: the spectrum smoothly tapers from $0$ to $1/T$, the time-domain tails decay much faster, and the zero crossings are more gradual
+\item The trade-off: \textbf{larger $\alpha$ $\rightarrow$ more bandwidth used, but faster decay and better robustness to timing errors}
+\end{itemize}
+
+The RC pulse still satisfies the Nyquist ISI-free condition for all $\alpha$:
+
+\begin{equation}
+p_{\text{RC}}(nT) = \begin{cases} 1 & n = 0 \\ 0 & n \neq 0 \end{cases}
+\end{equation}
+
+\centering
+\includegraphics[width=0.8\textwidth]{RRCtimedomain.png}\\[0.5em]
+{\small Figure: RRC in time domain}
+
+\centering
+\includegraphics[width=0.8\textwidth]{RRCfdomain.png}\\[0.5em]
+{\small Figure: RRC in frequency domain}
+
+\begin{IntuitionBox}{Summary of the trade-off so far}
+\begin{itemize}
+\item Rectangular pulse: finite in time, but infinite bandwidth. The $\mathrm{sinc}^2$ spectrum has sidelobes decaying as $1/f^2$ , energy leaks far beyond the main lobe into adjacent channels
+\item Sinc pulse: minimum bandwidth ($1/(2T)$), but infinite in time with tails decaying as $1/t$ which is still significant after many symbol periods, so truncating to a finite filter badly distorts the pulse. Also fragile to timing errors due to steep zero crossings
+\item Raised Cosine ($\alpha = 1$): slightly more bandwidth ($1/T$), but tails decay as $1/t^3$ which is practically zero after 2--3 symbol periods. Can be safely truncated to a short FIR (Finite Impulse Response) filter ($\pm 4T$ to $\pm 6T$) with negligible loss. Gentle zero crossings make it robust to timing errors. Still ISI-free at $t = nT$
+\end{itemize}
+\end{IntuitionBox}
+
+\subsection{Why Square \emph{Root} Raised Cosine?}
+
+We have established that we want the \textbf{overall} effective pulse $p(t)$ to be a Raised Cosine. But recall that the effective pulse is the cascade of TX filter, channel, and RX filter:
+
+\begin{equation}
+P(f) = H_{\text{TX}}(f) \cdot H_C(f) \cdot H_{\text{RX}}(f)
+\end{equation}
+
+Assuming a flat channel ($H_C(f) \approx 1$), we need:
+
+\begin{equation}
+H_{\text{TX}}(f) \cdot H_{\text{RX}}(f) = P_{\text{RC}}(f)
+\end{equation}
+
+There is an additional constraint: from matched filter theory (optimal SNR in AWGN), the receive filter should be matched to the transmit filter:
+
+\begin{equation}
+H_{\text{RX}}(f) = H_{\text{TX}}^*(f)
+\end{equation}
+
+For real-valued symmetric filters, this means $H_{\text{RX}}(f) = H_{\text{TX}}(f)$. Combining both requirements:
+
+\begin{equation}
+H_{\text{TX}}(f) \cdot H_{\text{TX}}(f) = P_{\text{RC}}(f) \quad\Longrightarrow\quad H_{\text{TX}}(f) = \sqrt{P_{\text{RC}}(f)}
+\end{equation}
+
+This is the \textbf{Root Raised Cosine (RRC)} filter.
+
+\begin{itemize}
+\item The TX filter uses an RRC pulse shape $g_{\text{TX}}(t)$
+\item The RX filter uses the same RRC pulse shape $g_{\text{RX}}(t) = g_{\text{TX}}(t)$ (matched filter)
+\item Their cascade in frequency: $\sqrt{P_{\text{RC}}} \cdot \sqrt{P_{\text{RC}}} = P_{\text{RC}}$ $\rightarrow$ full Raised Cosine $\rightarrow$ Nyquist condition satisfied $\rightarrow$ \textbf{no ISI}
+\item Simultaneously, the matched filter maximises the \textbf{signal-to-noise ratio} at the sampling instant
+\end{itemize}
+
+\begin{KeyBox}{Two birds, one stone}
+Splitting the Raised Cosine equally between TX and RX (as two Root Raised Cosine filters) simultaneously achieves:
+\begin{itemize}
+\item \textbf{ISI-free} transmission (Nyquist condition on the overall pulse)
+\item \textbf{Optimal SNR} at the receiver (matched filter condition)
+\end{itemize}
+This is why RRC is the standard choice in practical digital communication systems and in this lab.
+\end{KeyBox}
+
+\begin{IntuitionBox}{BER: Bit Error \textit{Ratio} vs.\ Bit Error \textit{Rate}}
+Two distinct quantities share the acronym BER:
+\begin{itemize}
+\item \textbf{Bit Error Ratio} (what we measure in this lab): the \textbf{proportion} of transmitted bits that are incorrectly decoded at the receiver. It is a dimensionless number between 0 and 1:
+\begin{equation*}
+\text{BER} = \frac{\text{number of bit errors}}{\text{total number of bits transmitted}}
+\end{equation*}
+For example, BER $= 0.03$ means 3 out of every 100 bits were received incorrectly.
+
+\item \textbf{Bit Error Rate}: the \textbf{number of bit errors per unit time} (errors per second). This depends on the data rate, at a symbol rate of 10,000 symbols/s with BER $= 0.03$, the bit error rate would be $0.03 \times 10{,}000 = 300$ errors/s.
+\end{itemize}
+In this lab (and most textbooks), BER refers to the \textbf{ratio}, not the rate.
+\end{IntuitionBox}
+
+\newpage
+
+\section{Exercise 1: BPSK Transmitter : Task Answers}
+\label{sec:ex1-tasks}
+
+\subsection{Task 1: Calculating the Number of Samples per Symbol $L$}
+
+From the lab parameters:
+
+\begin{itemize}
+\item IQ sample rate: $f_s = 1/T_x = 200{,}000$ Samples/s
+\item Symbol rate: $R_s = 1/T = 10{,}000$ symbols/s
+\end{itemize}
+
+Using Equation~\eqref{eq:L} from Section~\ref{sec:ex1-analysis}:
+
+\begin{equation}
+L = \frac{f_s}{R_s} = \frac{200{,}000}{10{,}000} = 20 \text{ samples per symbol}
+\end{equation}
+
+\begin{IntuitionBox}{What this means physically}
+For every single symbol ($+1$ or $-1$) we transmit, the USRP processes 20 discrete samples. These 20 samples are what allow the pulse-shaping filter to ``sculpt'' the smooth RRC waveform around each symbol --- without enough samples, the filter cannot faithfully represent the pulse shape.
+\end{IntuitionBox}
+
+\subsection{Task 2: Block Diagram, Front Panel Plots, and Observations}
+
+\centering
+\includegraphics[width=0.8\textwidth]{BPSK_transmitter.png}\\[0.5em]
+{\small Figure: LabVIEW block diagram of the BPSK transmitter}
+
+The transmitter block diagram implements the following processing chain (referring back to the theory in Section~\ref{sec:ex1-analysis}):
+
+\begin{itemize}
+\item \textbf{MT Generate Bits}: produces a pseudorandom sequence of 1000 bits (the message)
+
+\item \textbf{Symbol Mapping}: converts each bit into an antipodal symbol ($0 \rightarrow -1$, $1 \rightarrow +1$)
+
+\item \textbf{AddFrameHeader}: prepends a known 26-bit synchronisation sequence so the receiver can identify the start of the message
+
+\begin{IntuitionBox}{Why 26 bits for the header?}
+A 26-bit header has a probability of $1/2^{26} \approx 1.5 \times 10^{-8}$ of appearing by chance in random noise. This makes false synchronisation triggers virtually impossible over a 1000-bit message. A shorter header (e.g.\ 4 bits: $1/2^4 = 1/16$ chance of false match) would be far too unreliable.
+\end{IntuitionBox}
+
+\item \textbf{Upsample by $L=20$}: inserts 19 zeros between each symbol, raising the rate from $R_s$ to $f_s$ (as derived in Task 1)
+
+\item \textbf{Pulse Shaping (Convolution with RRC filter)}: the MT Generate Filter Coefficients block produces the RRC impulse response; convolving with the upsampled signal replaces each impulse with a smooth RRC pulse (see Section~1.5 for why RRC is chosen)
+
+\centering
+\includegraphics[width=0.8\textwidth]{ConvolutionRRC.jpeg}\\[0.5em]
+{\small Figure: hand drawing of the convolution operation}
+
+\item \textbf{Normalisation (Quick Scale 1D)}: scales the filtered signal so its peak absolute value is 1, preventing DAC clipping in the USRP
+
+\begin{IntuitionBox}{Why normalise before the USRP?}
+The USRP's Digital-to-Analog Converter (DAC) has a fixed output voltage range (e.g.\ $-1$ V to $+1$ V). If a digital sample exceeds this range, the DAC \textbf{clips}: it outputs the maximum voltage instead, chopping the waveform flat and distorting the signal. After RRC filtering, overlapping pulse tails can add constructively and produce peaks beyond $\pm 1$. Quick Scale 1D divides the entire array by its peak absolute value, ensuring everything fits within the DAC's range.
+\end{IntuitionBox}
+
+\item \textbf{Real to Complex conversion}: the USRP expects complex-valued baseband input ($+1 + j0$ or $-1 + j0$ for BPSK)
+
+\item \textbf{Insert Pilots}: adds known pilot symbols used by the receiver for channel estimation (phase/amplitude correction)
+
+\begin{IntuitionBox}{What are pilot symbols and why do we need them?}
+Pilot symbols are known values (e.g.\ $+1, +1, -1, +1$) inserted at known positions within the transmitted data stream. Both the transmitter and receiver agree on what these values are and where they sit.
+
+After the signal travels through the channel and gets corrupted (phase rotation by $e^{j\phi}$, amplitude scaling), the pilot symbols are corrupted in the exact same way as the data. At the receiver, the Channel Estimator compares what it received at the pilot positions to what it knows was sent, and from the difference it figures out what the channel did.
+\end{IntuitionBox}
+
+\item \textbf{AddFrameHeader (Complex)}: adds the frame header to the complex signal
+
+\item \textbf{niUSRP Write Tx Data}: sends the complex baseband samples to the USRP hardware, which performs DAC and RF upconversion to $f_c = 400$ MHz
+\end{itemize}
+
+\centering
+\includegraphics[width=0.8\textwidth]{baseband_modulated_RRC.png}\\[0.5em]
+
+\textbf{Observations on the baseband waveform:}
+
+\begin{itemize}
+\item The waveform oscillates between approximately $+1$ and $-1$, corresponding to the two BPSK symbols
+
+\item The transitions between symbols are \textbf{smooth and gradual}, not sharp, this is the direct effect of the RRC pulse-shaping filter spreading each symbol across multiple sample periods
+
+\item The waveform is \textbf{not} a simple square wave: each symbol's pulse has smooth leading and trailing tails that overlap with neighbouring symbols in time. However, at the correct sampling instants (every $L = 20$ samples), the Nyquist condition ensures these tails contribute zero, this is the ISI-free property discussed in Section~1.6
+\end{itemize}
+
+\centering
+\includegraphics[width=0.8\textwidth]{Baseband_RRC_PSD.png}\\[0.5em]
+
+\textbf{Observations on the baseband power spectrum (RRC):}
+
+\begin{itemize}
+\item The spectrum is concentrated in a \textbf{narrow main lobe} centred at DC (baseband)
+
+\item The spectral roll-off outside the main lobe is \textbf{rapid}: the power drops steeply, with very little energy leaking into adjacent frequency bands
+
+\item This compact spectrum is the direct consequence of the RRC filter design, as explained in Section~1.8, the Raised Cosine family is specifically designed to confine energy within a controlled bandwidth of $(1+\alpha)/(2T)$
+
+\item The measured main lobe bandwidth is approximately: 20khz
+
+\begin{KeyBox}{Estimating $\alpha$ from the measured bandwidth}
+From the Raised Cosine bandwidth formula with roll-off factor $\alpha$ and symbol rate $R_s = 1/T$:
+\begin{equation}
+W = \frac{(1 + \alpha)}{2T} = \frac{(1 + \alpha) \cdot R_s}{2}
+\end{equation}
+The measured main lobe bandwidth is 20 kHz (10 kHz one-sided). Solving for $\alpha$:
+\begin{equation}
+\alpha = \frac{2W}{R_s} - 1 = \frac{2 \times 10{,}000}{10{,}000} - 1 = 1
+\end{equation}
+This tells us the lab's RRC filter uses $\alpha = 1$ (maximum roll-off). Referring back to the trade-off from Section~1.8: $\alpha = 1$ uses the most bandwidth ($W = 1/T$ instead of the minimum $1/(2T)$), but in return the time-domain tails decay as $1/t^3$ (fastest possible), making the filter easy to truncate into a short FIR and highly robust to timing errors at the receiver.
+\end{KeyBox}
+
+\newpage
+
+\vspace{1em}
+\end{itemize}
+
+\subsection{Task 3: Spectrum Comparison: RRC vs.\ Rectangular Pulses}
+
+\centering
+\includegraphics[width=0.8\textwidth]{square.png}\\[0.5em]
+
+\textbf{Observations on the rectangular pulse spectrum:}
+
+\begin{itemize}
+\item The main lobe is \textbf{significantly wider} than in the RRC case
+
+\item Beyond the main lobe, there are clearly visible \textbf{sidelobes} that decay slowly, this is the $\mathrm{sinc}^2$ spectral shape predicted in Section~1.6 (Attempt 1: Rectangular Pulse)
+
+\item These sidelobes represent energy leaking into neighbouring frequency bands.
+
+\item The measured main lobe bandwidth is approximately: 80kHz
+
+\vspace{1em}
+\end{itemize}
+
+\subsection{Task 4: Comparing Main Lobe Bandwidth and Spectral Roll-Off}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{l c c}
+\hline
+\textbf{Property} & \textbf{RRC Filter} & \textbf{Rectangular (None)} \\
+\hline
+Main lobe bandwidth & \ 20 kHz & \ 80 kHz \\
+Spectral roll-off & \ -60 dB & \ -20 dB \\
+Sidelobe behaviour & Negligible & Prominent, slow decay \\
+\hline
+\end{tabular}
+\end{center}
+
+\vspace{0.5em}
+
+\textbf{Analysis:}
+
+\begin{itemize}
+\item The RRC filter produces a main lobe that is \textbf{much narrower} than the rectangular case. This confirms the theoretical prediction: RRC confines the signal energy within a bandwidth of approximately $(1+\alpha)/(2T)$, whereas the rectangular pulse spreads energy across a much wider $\mathrm{sinc}^2$ envelope
+
+\item The spectral roll-off (rate at which power decays outside the main lobe) is \textbf{far steeper for RRC}.
+
+\item In a practical system, this difference is critical: the RRC-shaped signal can coexist with other users in adjacent frequency channels without causing interference, while a rectangular-pulse signal would leak substantial energy into those channels
+\end{itemize}
+
+\begin{KeyBox}{Proof: rectangular pulse sidelobes decay as $1/f^2$}
+A rectangular pulse of duration $T$ has the Fourier transform:
+\begin{equation}
+H(f) = T \cdot \mathrm{sinc}(fT) = T \cdot \frac{\sin(\pi f T)}{\pi f T}
+\end{equation}
+The numerator $\sin(\pi fT)$ oscillates between $-1$ and $+1$, so the \textbf{envelope} of the sinc is governed purely by the denominator:
+\begin{equation}
+|H(f)| \;\sim\; \frac{1}{\pi f T} \;\propto\; \frac{1}{f} \quad \text{as } f \to \infty
+\end{equation}
+When using a matched filter pair (rectangular TX + rectangular RX), the overall spectrum is the square:
+\begin{equation}
+P(f) = |H(f)|^2 = T^2 \cdot \mathrm{sinc}^2(fT) = T^2 \cdot \left(\frac{\sin(\pi f T)}{\pi f T}\right)^2
+\end{equation}
+The sidelobe envelope therefore decays as:
+\begin{equation}
+|P(f)| \;\sim\; \frac{1}{(\pi f T)^2} \;\propto\; \frac{1}{f^2} \quad \text{as } f \to \infty
+\end{equation}
+This $1/f^2$ decay is slow: significant energy persists well beyond the main lobe, which is why the rectangular spectrum plot shows clearly visible sidelobes at high frequencies.
+\end{KeyBox}
+
+\vspace{5cm}
+
+\begin{SummaryBox}{Exercise 1 Tasks: Key Takeaways}
+\begin{itemize}
+\item $L = 20$ samples/symbol links the IQ rate to the symbol rate
+\item The TX chain is: bits $\rightarrow$ symbols $\rightarrow$ frame header $\rightarrow$ upsample $\rightarrow$ RRC filter $\rightarrow$ normalise $\rightarrow$ complex $\rightarrow$ pilots $\rightarrow$ USRP
+\item RRC pulse shaping produces a compact, rapidly decaying spectrum
+\item Rectangular pulses produce a wide $\mathrm{sinc}^2$ spectrum with slow-decaying sidelobes
+\item RRC is the practical engineering choice: ISI-free at sampling instants + bandwidth-efficient
+\end{itemize}
+\end{SummaryBox}
+
+\newpage
+\section{Exercise 2: BPSK Receiver: Conceptual Analysis}
+\label{sec:ex2-analysis}
+
+\begin{GoalBox}{Goal of Exercise 2 (What we build)}
+Implement a complete \textbf{BPSK receiver} in LabVIEW: take the noisy signal from the USRP, undo the effects of the channel, recover the transmitted symbols, and measure the \textbf{Bit Error Ratio (BER)} under different gain settings.
+\end{GoalBox}
+
+\subsection{Received Signal Model}
+
+The signal arriving at the receiver after propagation through the channel is:
+
+\begin{equation}
+r(t) = \pm B\,g_{\text{TX}}(t)\cos(2\pi f_c t + \phi) + w(t)
+\end{equation}
+
+where:
+
+\begin{itemize}
+\item $B$ is the received amplitude (much smaller than the transmitted amplitude $A$, due to channel attenuation)
+\item $\phi$ is an unknown \textbf{phase offset} caused by the difference between the TX and RX oscillators (they are free-running, not phase-locked)
+\item $w(t)$ is \textbf{additive white Gaussian noise (AWGN)} introduced by the receiver electronics
+\end{itemize}
+
+The USRP receiver first performs RF downconversion (mixing with $\cos(2\pi f_c t)$ and $-\sin(2\pi f_c t)$, as derived below), producing a continuous-time complex baseband signal. It then samples this signal at rate $f_s = 1/T_x$ via its internal ADC, producing discrete complex baseband samples:
+
+\begin{equation}
+\tilde{r}[k] = \pm \frac{B}{2}\,g_{\text{TX}}[k]\,e^{j\phi} + \tilde{w}[k]
+\end{equation} (see derivation below)
+
+The receiver's job is to process these noisy, phase-rotated samples and recover the original bits. The processing chain is:
+
+\begin{SummaryBox}{BPSK Receiver Chain}
+Fetch Rx Data $\rightarrow$ Frame Sync $\rightarrow$ Channel Estimation $\rightarrow$ Matched Filtering $\rightarrow$ Pulse Synchronisation $\rightarrow$ Sampling (Decimate) $\rightarrow$ Detection $\rightarrow$ Symbol Mapping $\rightarrow$ BER Calculation
+\end{SummaryBox}
+
+\subsection{Downconversion: From Passband to Complex Baseband (Derivation)}
+
+The received passband signal is:
+
+\begin{equation}
+r(t) = \pm B\,g_{\text{TX}}(t)\cos(2\pi f_c t + \phi)
+\end{equation}
+
+where the $\pm$ is the BPSK symbol ($+1$ or $-1$), $B$ is the received amplitude, and $\phi$ is the unknown phase offset between TX and RX oscillators.
+
+The USRP downconverts by multiplying with two local oscillator signals to extract the in-phase (I) and quadrature (Q) components.
+
+\subsubsection{I (In-Phase) Branch}
+
+Multiply by $\cos(2\pi f_c t)$:
+
+\begin{equation}
+r(t)\cdot\cos(2\pi f_c t) = \pm B\,g_{\text{TX}}(t)\cos(2\pi f_c t + \phi)\cos(2\pi f_c t)
+\end{equation}
+
+Apply the trigonometric identity $\cos(A)\cos(B) = \tfrac{1}{2}[\cos(A - B) + \cos(A + B)]$:
+
+\begin{equation}
+= \pm \frac{B}{2}\,g_{\text{TX}}(t)\Big[\underbrace{\cos(\phi)}_{\text{baseband}} + \underbrace{\cos(4\pi f_c t + \phi)}_{\text{at frequency } 2f_c}\Big]
+\end{equation}
+
+The second term oscillates at $2f_c$ (very high frequency). The low-pass filter inside the USRP removes it. What survives:
+
+\begin{equation}
+I(t) = \pm \frac{B}{2}\,g_{\text{TX}}(t)\cos(\phi)
+\end{equation}
+
+\subsubsection{Q (Quadrature) Branch}
+
+Multiply by $-\sin(2\pi f_c t)$:
+
+\begin{equation}
+r(t)\cdot\big(-\sin(2\pi f_c t)\big) = \mp B\,g_{\text{TX}}(t)\cos(2\pi f_c t + \phi)\sin(2\pi f_c t)
+\end{equation}
+
+Apply the identity $\cos(A)\sin(B) = \tfrac{1}{2}[\sin(A + B) - \sin(A - B)]$:
+
+\begin{equation}
+= \mp \frac{B}{2}\,g_{\text{TX}}(t)\Big[\sin(4\pi f_c t + \phi) - \sin(\phi)\Big]
+\end{equation}
+
+After low-pass filtering (removing the $2f_c$ term):
+
+\begin{equation}
+Q(t) = \pm \frac{B}{2}\,g_{\text{TX}}(t)\sin(\phi)
+\end{equation}
+
+\subsubsection{Combining into Complex Baseband}
+
+The complex baseband signal is $\tilde{r}(t) = I(t) + jQ(t)$:
+
+\begin{equation}
+\tilde{r}(t) = \pm \frac{B}{2}\,g_{\text{TX}}(t)\Big[\cos(\phi) + j\sin(\phi)\Big] = \pm \frac{B}{2}\,g_{\text{TX}}(t)\,e^{j\phi}
+\end{equation}
+
+The USRP then samples this continuous signal at rate $f_s = 1/T_s$, producing discrete-time samples:
+
+\begin{equation}
+\tilde{r}[k] = \pm \frac{B}{2}\,g_{\text{TX}}[k]\,e^{j\phi} + \tilde{w}[k]
+\end{equation}
+
+where $\tilde{w}[k]$ is the sampled noise.
+
+\begin{IntuitionBox}{Note on the $\pm$ sign}
+The $\pm$ has nothing to do with the I/Q branches, it carries over from the original BPSK signal. It is the transmitted symbol: $+1$ or $-1$. It was already present in $r(t) = \pm B\,g_{\text{TX}}(t)\cos(2\pi f_c t + \phi)$ before any downconversion, and it simply passes through all the math unchanged. This is exactly the information the receiver must recover.
+\end{IntuitionBox}
+
+\subsection{Stage 1: Frame Synchronisation}
+
+The receiver does not know when the transmitted message begins within the stream of received samples. The \textbf{FrameSync} sub-VI solves this by searching for the known 26-bit header that was prepended by \texttt{AddFrameHeader} at the transmitter (see Exercise 1, Task 2).
+
+\begin{IntuitionBox}{Why 26 bits for the header?}
+A 26-bit header has a probability of $1/2^{26} \approx 1.5 \times 10^{-8}$ of appearing by chance in random noise. This makes false synchronisation triggers virtually impossible over a 1000-bit message. A shorter header (e.g.\ 4 bits: $1/2^4 = 1/16$ chance of false match) would be far too unreliable.
+\end{IntuitionBox}
+
+\begin{itemize}
+\item It correlates the received sequence with the known header pattern
+\item Once found, it discards everything before the header (and the header itself)
+\item The output is the \textbf{aligned} received samples, starting exactly at the first data symbol
+\item Without this step, the receiver would not know which sample corresponds to which bit, making BER measurement meaningless
+\end{itemize}
+
+\subsection{Stage 2: Channel Estimation and Phase Correction}
+
+The TX and RX USRPs use \textbf{independent, free-running oscillators}. (An oscillator here is the electronic circuit inside each USRP that generates the carrier wave $\cos(2\pi f_c t)$.)
+
+Even though both are set to $f_c = 400$ MHz, there will always be a small frequency offset and a random phase offset $\phi$ between them. This means the received constellation is \textbf{rotated} by $\phi$ in the complex plane:
+
+\begin{itemize}
+\item A transmitted $+1$ becomes $+1 \cdot e^{j\phi}$ at the receiver
+\item A transmitted $-1$ becomes $-1 \cdot e^{j\phi}$ at the receiver
+\item If $\phi$ is large (\ close to $\pi/2$), the real part of the received samples is near zero for both symbols $\rightarrow$ the detector cannot distinguish them $\rightarrow$ BER $\approx 0.5$ (random guessing)
+\end{itemize}
+
+The \textbf{Channel Estimator} block corrects this by:
+
+\begin{itemize}
+\item Reading the \textbf{pilot symbols} that were inserted at the transmitter (known values at known positions)
+\item Performing \textbf{least-squares estimation} of the channel transfer function $H$: since the pilot values are known, comparing them to what was received gives an estimate of the complex channel gain $\hat{H} = |H|e^{j\phi}$
+\item Applying the inverse $1/\hat{H}$ to the entire received signal, which removes the phase rotation and corrects the amplitude scaling
+\end{itemize}
+
+\begin{IntuitionBox}{Essence of coherent detection : pilots insertion and channel estimation}
+ The pilots act as ``anchor points'', the receiver knows what they should be, so it can figure out what the channel did and undo it. This is the essence of \textbf{coherent detection}: the receiver must know (or estimate) the carrier phase.
+\end{IntuitionBox}
+
+\subsection{Stage 3: Matched Filtering: Full Derivation}
+
+After channel estimation, the signal is real-valued. We now apply the \textbf{matched filter}, which is the most important signal processing step at the receiver. Its purpose is to \textbf{maximise the signal-to-noise ratio (SNR)} at the sampling instant.
+
+\subsubsection{Problem Setup}
+
+Consider a received pulse $g(t)$ corrupted by AWGN $w(t)$ with power spectral density $N_0/2$:
+
+\begin{equation}
+x(t) = g(t) + w(t), \qquad 0 \leq t \leq T_b
+\end{equation}
+
+This signal passes through a receive filter $h(t)$:
+
+\begin{equation}
+y(t) = x(t) * h(t) = \underbrace{g(t) * h(t)}_{g_o(t)\text{ (signal)}} + \underbrace{w(t) * h(t)}_{n(t)\text{ (filtered noise)}}
+\end{equation}
+
+We sample at $t = T_b$ and want to maximise the \textbf{peak signal-to-noise ratio}:
+
+\begin{equation}
+\eta = \frac{|g_o(T_b)|^2}{\mathbb{E}\{n^2(T_b)\}} = \frac{\text{instantaneous signal power at sampling}}{\text{average noise power at sampling}}
+\end{equation}
+
+\centering
+\includegraphics[width=0.8\textwidth]{matched_filter.png}\\[0.5em]
+
+\subsubsection{Deriving the Signal and Noise Components}
+
+\textbf{Signal component} at the output, in the frequency domain:
+
+\begin{equation}
+G_o(f) = H(f)\,G(f) \quad\Longrightarrow\quad g_o(T_b) = \int_{-\infty}^{\infty} H(f)\,G(f)\,e^{j2\pi f T_b}\,df
+\end{equation}
+
+So the instantaneous signal power at $t = T_b$ is:
+
+\begin{equation}
+|g_o(T_b)|^2 = \left|\int_{-\infty}^{\infty} H(f)\,G(f)\,e^{j2\pi f T_b}\,df\right|^2
+\end{equation}
+
+\textbf{Noise component}: the noise $w(t)$ is AWGN with PSD $S_W(f) = N_0/2$. After passing through $h(t)$, the noise PSD becomes:
+
+\begin{equation}
+S_N(f) = S_W(f) \cdot |H(f)|^2 = \frac{N_0}{2}|H(f)|^2
+\end{equation}
+
+The average noise power at the output is:
+
+\begin{equation}
+\mathbb{E}\{n^2(t)\} = \int_{-\infty}^{\infty} S_N(f)\,df = \frac{N_0}{2}\int_{-\infty}^{\infty} |H(f)|^2\,df
+\end{equation}
+
+\subsubsection{Maximising the SNR Using Schwarz's Inequality}
+
+Combining, the peak SNR is:
+
+\begin{equation}
+\eta = \frac{\left|\displaystyle\int_{-\infty}^{\infty} H(f)\,G(f)\,e^{j2\pi f T_b}\,df\right|^2}{\dfrac{N_0}{2}\displaystyle\int_{-\infty}^{\infty} |H(f)|^2\,df}
+\end{equation}
+
+To find the $H(f)$ that maximises $\eta$, we apply the \textbf{Cauchy--Schwarz inequality}: for any two energy signals $\phi_1(x)$ and $\phi_2(x)$,
+
+\begin{equation}
+\left|\int_{-\infty}^{\infty} \phi_1(x)\,\phi_2^*(x)\,dx\right|^2 \leq \int_{-\infty}^{\infty}|\phi_1(x)|^2\,dx \cdot \int_{-\infty}^{\infty}|\phi_2(x)|^2\,dx
+\end{equation}
+
+with equality if and only if $\phi_1(x) = k\,\phi_2(x)$ for some constant $k$.
+
+Let $\phi_1(f) = H(f)$ and $\phi_2(f) = G^*(f)\,e^{-j2\pi f T_b}$. Then the numerator of $\eta$ becomes exactly the left-hand side of Schwarz's inequality, giving:
+
+\begin{equation}
+\eta \leq \frac{2}{N_0}\int_{-\infty}^{\infty} |G(f)|^2\,df = \frac{2E}{N_0}
+\end{equation}
+
+where $E = \int_{-\infty}^{\infty}|G(f)|^2\,df = \int_{-\infty}^{\infty}|g(t)|^2\,dt$ is the \textbf{energy of the transmitted pulse} (Parseval's theorem).
+
+\subsubsection{The Optimal Filter}
+
+Equality holds when $H(f) = k\,G^*(f)\,e^{-j2\pi f T_b}$. Taking the inverse Fourier transform:
+
+\begin{equation}
+h_{\text{opt}}(t) = k\,g^*(T_b - t) = k\,g(T_b - t)
+\end{equation}
+
+(the last step uses the fact that $g(t)$ is real-valued).
+
+\begin{KeyBox}{Matched filter: key properties}
+\begin{itemize}
+\item The optimal receive filter is a \textbf{time-reversed, shifted copy} of the transmit pulse $g(t)$
+\item The maximum achievable SNR is $\eta_{\max} = 2E/N_0$, which depends \textbf{only on the pulse energy}, not on its shape
+\item For BPSK with antipodal signalling (since each symbol corresponds to a bit) : $E = E_b$ (energy per bit), so $\eta_{\max} = 2E_b/N_0$
+\end{itemize}
+\end{KeyBox}
+
+\subsubsection{Connection to This Lab: RRC as Matched Filter}
+
+In Exercise 1, the transmitter used an RRC pulse $g_{\text{TX}}(t)$. The matched filter at the receiver should therefore be $g_{\text{TX}}(T_b - t)$. Since the RRC pulse is symmetric, $g_{\text{TX}}(T_b - t) = g_{\text{TX}}(t)$ (up to a time shift), so:
+
+\begin{itemize}
+\item The receiver uses the \textbf{same RRC filter} as the transmitter,  this is what we implement in LabVIEW using \texttt{MT Generate Filter Coefficients} with the same settings as in Exercise 1
+\item The cascade of TX RRC and RX RRC gives a full \textbf{Raised Cosine} pulse (as derived in Section~1.9), satisfying the Nyquist ISI-free condition
+\item Simultaneously, the matched filter condition is satisfied, giving \textbf{maximum SNR}
+\end{itemize}
+
+This is the ``two birds, one stone'' result from Section~1.9: by splitting the Raised Cosine equally between TX and RX, we achieve both ISI-free detection and optimal noise rejection.
+
+\subsection{Stage 4: Pulse Synchronisation}
+
+After matched filtering, the signal must be sampled at exactly the right instants (once per symbol period $T$). But due to propagation delays, filtering delays, and channel distortion, the optimal sampling instants are not necessarily at $t = 0, T, 2T, \ldots$ , they may be shifted by some fractional amount.
+
+\begin{itemize}
+\item The \textbf{PulseAlign} sub-VI determines this optimal sampling offset
+\item It finds the point within each symbol period where the ``eye'' is most open, i.e.\ where the signal amplitude is maximum and the distance between $+1$ and $-1$ levels is greatest
+\item Without this step, sampling at a slightly wrong instant would catch the RRC pulse between its peak and its zero crossing, degrading the SNR and introducing residual ISI
+\end{itemize}
+
+\subsection{Stage 5: Sampling (Decimation)}
+
+The \textbf{Decimate} function takes the aligned baseband waveform (which has $L = 20$ samples per symbol) and extracts one sample per symbol:
+
+\begin{itemize}
+\item Starting at index 0 (aligned by PulseAlign), it takes every $L$-th sample
+\item This converts the oversampled waveform back to the symbol rate $R_s = 1/T$
+\item Each output sample is a noisy version of the transmitted symbol: approximately $+1$ or $-1$, corrupted by filtered Gaussian noise
+\end{itemize}
+
+\subsection{Stage 6: Detection (Threshold Decision)}
+
+Each decimated sample $y[n]$ must be classified as symbol $+1$ or $-1$. For BPSK with equiprobable symbols, the optimal decision rule is:
+
+\begin{equation}
+\hat{b}[n] = \begin{cases} +1 & \text{if } y[n] > 0 \\ -1 & \text{if } y[n] < 0 \end{cases}
+\end{equation}
+
+The threshold is $\lambda = 0$ because:
+
+\begin{itemize}
+\item The two symbols are symmetric about zero ($+1$ and $-1$)
+\item The noise is zero-mean Gaussian
+\item The symbols are equally likely (equiprobable)
+\end{itemize}
+
+In LabVIEW, this is implemented with a \texttt{Greater Than 0?} function inside a \texttt{For Loop}, followed by \texttt{Boolean to Integer} to convert back to bits.
+
+\subsection{BER Theory for BPSK (Full Derivation)}
+\label{sec:ber-theory}
+
+This derivation links the physical SNR to the probability that a bit is decoded incorrectly.
+
+\subsubsection{Setup}
+
+After matched filtering and sampling, the received sample for a single bit is:
+
+\begin{equation}
+y = \pm A + n
+\end{equation}
+
+where $A$ is the signal amplitude after matched filtering, and $n$ is Gaussian noise with zero mean and variance $\sigma^2 = N_0/T_b$.
+
+\subsubsection{Error Probability for Symbol $+1$}
+
+If $+1$ was sent (i.e.\ $y = +A + n$), an error occurs when $y < 0$:
+
+\begin{equation}
+P_{e|+1} = P(y < 0) = P(A + n < 0) = P(n < -A)
+\end{equation}
+
+Since $n \sim \mathcal{N}(0, \sigma^2)$, normalising $z = n/\sigma$:
+
+\begin{equation}
+P_{e|+1} = P\!\left(\frac{n}{\sigma} < -\frac{A}{\sigma}\right) = Q\!\left(\frac{A}{\sigma}\right)
+\end{equation}
+
+By symmetry (BPSK is antipodal), $P_{e|-1} = P_{e|+1}$. For equiprobable symbols:
+
+\begin{equation}
+P_e = P_{e|+1} = Q\!\left(\frac{A}{\sigma}\right)
+\end{equation}
+
+\subsubsection{Expressing in Terms of $E_b/N_0$}
+
+For BPSK (antipodal signalling), the energy per bit is:
+
+\begin{equation}
+E_b = \frac{A^2 T_b}{2}
+\end{equation}
+
+The noise variance after matched filtering is:
+
+\begin{equation}
+\sigma^2 = \frac{N_0}{T_b}
+\end{equation}
+
+Therefore:
+
+\begin{equation}
+\frac{A^2}{\sigma^2} = \frac{A^2}{N_0 / T_b} = \frac{A^2 T_b}{N_0} = \frac{2E_b}{N_0}
+\end{equation}
+
+Substituting back:
+
+\begin{equation}
+\boxed{P_{e,\text{BPSK}} = Q\!\left(\sqrt{\frac{2E_b}{N_0}}\right)}
+\end{equation}
+
+\begin{KeyBox}{What this equation tells us}
+\begin{itemize}
+\item BER depends \textbf{only} on the ratio $E_b/N_0$ (energy per bit divided by noise spectral density)
+\item Increasing $E_b/N_0$ (more signal energy or less noise) $\rightarrow$ $Q$-function argument grows $\rightarrow$ $Q(\cdot)$ decreases $\rightarrow$ fewer bit errors
+\item $Q(x)$ decays very rapidly: even a small increase in $E_b/N_0$ (in dB) dramatically reduces BER
+\item This is the \textbf{best achievable BER} among all binary modulation schemes for a given $E_b/N_0$ :BPSK is optimal
+\end{itemize}
+\end{KeyBox}
+
+\centering
+\includegraphics[width=0.8\textwidth]{gaussianBPSK.jpeg}\\[0.5em]
+
+\subsubsection{Link to Gain Settings in This Lab}
+
+In this lab, we control $E_b/N_0$ indirectly through the TX and RX gain settings:
+
+\begin{itemize}
+\item \textbf{Reducing TX gain} (e.g.\ from 0 dB to $-40$ dB): decreases the transmitted power $\rightarrow$ the received amplitude $A$ drops $\rightarrow$ $E_b$ decreases $\rightarrow$ $E_b/N_0$ decreases $\rightarrow$ BER increases
+\item \textbf{Reducing RX gain} (e.g.\ from 0 to $-15$ dB): the receiver has two sources of noise:
+\begin{itemize}
+\item \textbf{External noise} that arrives through the antenna along with the signal, this gets amplified by the RX gain together with the signal, so their ratio stays the same
+\item \textbf{Internal noise} from the receiver's own electronics (ADC quantisation, thermal noise in the circuits), this is always present regardless of the gain setting
+\end{itemize}
+When RX gain is reduced, both the signal and external noise get amplified less (their ratio is unchanged). But the internal noise stays fixed. So the signal becomes weaker relative to that fixed internal noise floor, and the overall SNR drops.
+\end{itemize}
+
+\centering
+\includegraphics[width=0.8\textwidth]{graph_comparing_BER_coherent.png}\\[0.5em]
+
+\newpage
+\section{Exercise 2: BPSK Receiver: Task Answers}
+\label{sec:ex2-tasks}
+
+\subsection{Task 1: Receiver Block Diagram and Observations}
+
+\centering
+\includegraphics[width=0.8\textwidth]{BPSK_receiver1.png}\\[0.5em]
+\centering
+\includegraphics[width=0.4\textwidth]{BPSK_receiver2.png}\\[0.5em]
+The receiver block diagram implements the processing chain described in Section~\ref{sec:ex2-analysis}:
+
+\begin{itemize}
+\item \textbf{niUSRP Fetch Rx Data}: receives complex baseband samples from the USRP hardware at $f_s = 200{,}000$ Samples/s, carrier frequency 400 MHz, antenna RX2
+
+\item \textbf{FrameSync (Complex)}: searches for the 26-bit frame header within the received stream. Discards all samples before the header and the header itself, aligning the data to the start of the message
+
+\item \textbf{Channel Estimator}: reads the pilot symbols, performs least-squares estimation of the channel transfer function $\hat{H}$, and applies $1/\hat{H}$ to correct the phase offset $\phi$ and amplitude scaling
+
+\item \textbf{Complex to Real}: extracts the real part of the corrected signal (for BPSK, all information is in the real component; the imaginary part is just noise)
+
+\item \textbf{Matched Filter (Convolution with RRC)}: convolves the real signal with the RRC filter coefficients (same parameters as TX: PSK modulation, $L = 20$ samples/symbol, Root Raised Cosine). This is the second half of the RRC $\times$ RRC = RC cascade, simultaneously maximising SNR (Section~3.4) and achieving ISI-free sampling (Section~1.9)
+
+\item \textbf{PulseAlign (Real)}: determines the optimal fractional sampling offset within each symbol period
+
+\begin{IntuitionBox}{Why does PulseAlign need $L$?}
+PulseAlign searches for the optimal sampling point within each symbol period. It needs $L = 20$ to know the window size.
+\end{IntuitionBox}
+
+\item \textbf{Decimate}: extracts one sample every $L = 20$ samples, converting the oversampled waveform back to the symbol rate
+
+\item \textbf{FrameSync (Real)}: a second frame synchronisation on the decimated, real-valued samples to fine-align the bit stream
+
+\item \textbf{Detection (For Loop + Greater Than 0?)}: applies the threshold $\lambda = 0$ to each sample. Positive $\rightarrow$ bit 1, negative $\rightarrow$ bit 0
+
+\item \textbf{Array Subset}: extracts exactly the message length (1000 bits) from the detected output
+
+\item \textbf{MT Calculate BER}: compares the received bit stream against the known transmitted PN (Pseudo-Random) sequence and computes the Bit Error Rate
+\end{itemize}
+
+With all gains at their default values (Tx: 0 dB, Rx: 0 dB), the transmitter and receiver were run several times:
+
+\begin{itemize}
+\item Across all runs, the observed BER was consistently $\approx 0$
+
+\item At full gain, the received signal is strong: $E_b/N_0$ is very high, so the $Q$-function (Section~\ref{sec:ber-theory}) evaluates to a negligibly small error probability
+
+\item Any occasional non-zero BER at this setting would indicate a synchronisation failure (FrameSync not locking) rather than noise-induced bit errors
+
+\item When ``trigger found?'' reads \texttt{true}, the BER measurement is valid. If it reads \texttt{false}, it means the run should be repeated
+\end{itemize}
+
+\subsection{Task 2: BER vs.\ Gain Settings}
+
+The TX and RX gains were varied to reduce $E_b/N_0$ and observe the effect on BER. Each configuration was run 5 times:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{cc|ccccc|c}
+\hline
+\multicolumn{2}{c|}{\textbf{Gain (dB)}} & \multicolumn{5}{c|}{\textbf{BER}} & \textbf{Average} \\
+\textbf{Tx} & \textbf{Rx} & Run 1 & Run 2 & Run 3 & Run 4 & Run 5 & \textbf{BER} \\
+\hline
+0 & 0 & 0 & 0 & 0 & 0 & 0 & 0.00000 \\
+$-35$ & $-15$ & 0.4523 & 0.4871 & 0.4614 & 0.4782 & 0.4693 & 0.46966 \\
+$-37$ & $-15$ & 0.4913 & 0.4756 & 0.4842 & 0.4691 & 0.4827 & 0.48058 \\
+$-40$ & $-15$ & 0.4978 & 0.4846 & 0.5012 & 0.4893 & 0.4761 & 0.48980 \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item \textbf{(Tx: 0, Rx: 0)}: BER $= 0$ across all runs. At full gain, $E_b/N_0$ is large enough that the probability of error $P_e = Q(\sqrt{2E_b/N_0})$ is negligible. The system operates well within the reliable region of the BER curve
+
+\item \textbf{(Tx: $-35$, Rx: $-15$)}: BER jumps to $\approx 0.47$. A TX gain reduction of 35 dB means the transmitted power drops by a factor of $10^{3.5} \approx 3162$. The received amplitude $B$ drops drastically, pushing $E_b/N_0$ close to 0 dB. The receiver can barely distinguish $+1$ from $-1$
+
+\item \textbf{(Tx: $-37$, Rx: $-15$)}: BER $\approx 0.48$, slightly worse. An additional 2 dB of TX attenuation further buries the signal in noise
+
+\item \textbf{(Tx: $-40$, Rx: $-15$)}: BER $\approx 0.49$. At this point the signal is completely buried in noise. The BER is essentially $0.5$ , meaning the receiver is guessing randomly and extracting \textbf{zero information} from the signal
+\end{itemize}
+
+\begin{IntuitionBox}{Why do the last three rows all give BER $\approx 0.5$?}
+Once $E_b/N_0$ drops below a certain threshold, the system enters the ``random guessing'' regime. Whether the gain is $-35$, $-37$, or $-40$ dB makes little difference: the signal is already too weak for the receiver to detect. This is the flat bottom of the BER curve where $P_e \approx 0.5$ regardless of further SNR reduction. The sharp transition from BER $\approx 0$ to BER $\approx 0.5$ (the ``waterfall'' effect) happens over just a few dB.
+\end{IntuitionBox}
+
+\begin{KeyBox}{Connecting measurements to theory}
+The BER formula $P_e = Q(\sqrt{2E_b/N_0})$ predicts:
+\begin{itemize}
+\item At high $E_b/N_0$ (full gain): $Q(\text{large number}) \approx 0$ $\rightarrow$ BER $\approx 0$
+\item At very low $E_b/N_0$ (heavy attenuation): $Q(\text{small number}) \approx 0.5$ $\rightarrow$ BER $\approx 0.5$
+\item The transition between these regimes is steep: a few dB of gain change can take the system from perfect to broken
+\item Our measurements confirm this: there is no middle ground in the table, BER is either 0 or $\approx 0.5$, which matches the sharp waterfall shape of the $Q$-function curve
+\end{itemize}
+\end{KeyBox}
+
+\begin{SummaryBox}{Exercise 2 Tasks: Key Takeaways}
+\begin{itemize}
+\item At full gain, BER $= 0$: the system works perfectly
+\item At reduced gain ($-35$ to $-40$ dB Tx, $-15$ dB Rx), BER $\approx 0.5$: the system completely fails
+\item There is no gradual degradation, the BER curve has a sharp waterfall transition
+\item BER $\approx 0.5$ means zero information recovery (random guessing), not ``everything wrong''
+\item All observations are consistent with the theoretical $P_e = Q(\sqrt{2E_b/N_0})$
+\end{itemize}
+\end{SummaryBox}
+
+\newpage
+\section{Exercise 3: Differential Phase Shift Keying (DPSK): Conceptual Analysis}
+\label{sec:ex3-analysis}
+
+\begin{GoalBox}{Goal of Exercise 3 (What we build)}
+Modify the BPSK system to implement \textbf{DPSK}: add a differential encoder at the transmitter and a differential decoder at the receiver. The key change is that DPSK \textbf{does not require channel estimation or pilot symbols} it uses the previous symbol as its own phase reference.
+\end{GoalBox}
+
+\subsection{The Problem DPSK Solves}
+
+Recall from Exercise 2 that standard BPSK requires \textbf{coherent detection}: the receiver must know the exact carrier phase $\phi$ to correctly distinguish $+1$ from $-1$. This is why we needed:
+
+\begin{itemize}
+\item Pilot symbols inserted at the transmitter (using bandwidth that could carry data)
+\item A Channel Estimator at the receiver performing least-squares estimation of $\hat{H}$
+\end{itemize}
+
+Both add complexity and overhead. DPSK avoids this entirely by encoding information in the \textbf{change between consecutive symbols} rather than in the absolute phase of each symbol. The previous received symbol acts as the phase reference for the current one, so the unknown phase offset $\phi$ cancels out.
+
+\subsection{Differential Encoding (Transmitter)}
+
+Instead of transmitting the information symbols $\{a_n\}$ directly, the transmitter computes a differentially encoded sequence $\{b_n\}$ using:
+
+\begin{equation}
+b_n = b_{n-1} \times a_n, \qquad a_n, b_n \in \{-1, +1\}
+\end{equation}
+
+where $b_0 = 1$ is a fixed reference symbol. The information is now carried in the \textbf{transition} between consecutive encoded symbols, not in their absolute value.
+
+\includegraphics[width=0.8\textwidth]{DPSK_generation.png}\\[0.5em]
+
+\subsubsection{Example from the lab spec}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l|cccccccc}
+\hline
+Information symbols $\{a_n\}$ & 1 & $-1$ & $-1$ & 1 & $-1$ & $-1$ & 1 & 1 \\
+\hline
+$\{b_{n-1}\}$ & 1 & 1 & $-1$ & 1 & 1 & $-1$ & 1 & 1 \\
+\hline
+Encoded sequence $\{b_n\}$ & 1 & $-1$ & 1 & 1 & $-1$ & 1 & 1 & 1 \\
+\hline
+\end{tabular}
+\end{center}
+
+Reading through column by column:
+
+\begin{itemize}
+\item $b_0 = 1$ (reference symbol, fixed)
+\item $b_1 = b_0 \times a_1 = 1 \times 1 = 1$
+\item $b_2 = b_1 \times a_2 = 1 \times (-1) = -1$
+\item $b_3 = b_2 \times a_3 = (-1) \times (-1) = 1$
+\item And so on, each encoded symbol depends on the previous one and the current information symbol
+\end{itemize}
+
+\begin{IntuitionBox}{Why this encoding works}
+If $a_n = +1$ (no change), then $b_n = b_{n-1}$, the encoded symbol stays the same.\\[0.3em]
+If $a_n = -1$ (change), then $b_n = -b_{n-1}$, the encoded symbol flips.\\[0.3em]
+So the information bit is embedded in whether or not consecutive symbols are the same or different, not in their absolute values. This is what makes the unknown phase offset $\phi$ irrelevant.
+\end{IntuitionBox}
+
+\subsubsection{LabVIEW Implementation of the Encoder}
+
+In LabVIEW, the differential encoder is built using a \texttt{For Loop} with a shift register:
+
+\includegraphics[width=0.8\textwidth]{DPSK_encoder.png}\\[0.5em]
+
+\begin{itemize}
+\item The shift register holds the previous encoded symbol $b_{n-1}$ (initialised to $+1$)
+\item Inside the loop: we multiply the current information symbol $a_n$ by the shift register value $b_{n-1}$
+\item The result $b_n$ is output and also fed back into the shift register for the next iteration
+\item The encoder is placed \textbf{after} the \texttt{AddFrameHeader} block (so the frame header also gets differentially encoded)
+\end{itemize}
+
+\subsection{Differential Decoding (Receiver)}
+
+At the receiver, after matched filtering, pulse alignment, and decimation, we have complex-valued samples. The differential decoder recovers the original information by comparing consecutive received samples:
+
+\begin{equation}
+\hat{a}_n = \text{Re}\!\left\{\tilde{r}[n] \cdot \tilde{r}^*[n-1]\right\}
+\end{equation}
+
+where $\tilde{r}^*[n-1]$ is the complex conjugate of the previous sample.
+
+\includegraphics[width=0.8\textwidth]{LocationDPSKReceiver.jpeg}\\[0.5em]
+
+\subsubsection{Why This Works Mathematically}
+
+The received samples (ignoring noise for clarity) are:
+
+\begin{equation}
+\tilde{r}[n] = b_n \cdot C \cdot e^{j\phi}, \qquad \tilde{r}[n-1] = b_{n-1} \cdot C \cdot e^{j\phi}
+\end{equation}
+
+where $C$ is the amplitude after matched filtering and $\phi$ is the unknown phase offset. Computing the product:
+
+\begin{equation}
+\tilde{r}[n] \cdot \tilde{r}^*[n-1] = b_n \cdot C \cdot e^{j\phi} \cdot b_{n-1} \cdot C \cdot e^{-j\phi} = b_n \cdot b_{n-1} \cdot C^2
+\end{equation}
+
+\textcolor{red}{The phase offset $e^{j\phi}$ cancels with $e^{-j\phi}$ from the conjugate.}
+ What remains is:
+
+\begin{equation}
+b_n \cdot b_{n-1} = a_n
+\end{equation}
+
+which is exactly the original information symbol (by the definition of differential encoding). Taking the real part and applying a threshold at 0 recovers the bit.
+
+\begin{KeyBox}{The key insight of DPSK}
+By multiplying the current sample with the conjugate of the previous sample, the unknown phase offset $\phi$ cancels out completely. No pilots, no channel estimation, no knowledge of $\phi$ needed. The previous symbol \textbf{is} the phase reference.
+\end{KeyBox}
+
+\subsubsection{LabVIEW Implementation of the Decoder}
+
+\includegraphics[width=0.8\textwidth]{DPSK_decoder.png}\\[0.5em]
+
+In LabVIEW, the differential decoder is built using:
+
+\begin{itemize}
+\item A \texttt{For Loop} with a shift register holding the previous complex sample $\tilde{r}[n-1]$
+\item Inside the loop: multiply the current complex sample $\tilde{r}[n]$ by the \texttt{Complex Conjugate} of the shift register value
+\item Extract the \textbf{real part} using \texttt{Complex to Real and Imaginary}
+\item The decoder is placed \textbf{after} the \texttt{Decimate} function and \textbf{before} \texttt{FrameSync (Complex)}
+\item Important: all operations use \textbf{complex (CDB)} functions since the data is still complex-valued at this point (no channel estimator to extract real part earlier)
+\end{itemize}
+
+\subsection{Changes to the BPSK System: What Is Removed and Why}
+
+DPSK modifies the BPSK system in specific ways. Understanding \textbf{what is removed and why} is critical:
+
+\subsubsection{Transmitter Changes}
+
+\begin{itemize}
+\item \textbf{Added}: Differential encoder (after \texttt{AddFrameHeader}, after symbol mapping)
+\item \textbf{Removed}: \texttt{Insert Pilots} : no longer needed because there is no channel estimation at the receiver. Pilots would waste bandwidth for nothing
+\item \textbf{Removed}: \texttt{AddFrameHeader (Complex)}: the second frame header insertion is no longer needed since the pilot/channel estimation path is removed
+\end{itemize}
+
+\subsubsection{Receiver Changes}
+
+\begin{itemize}
+\item \textbf{Removed}: \texttt{Channel Estimator}:DPSK does not need it; the differential decoder handles the phase offset
+\item \textbf{Removed}: \texttt{FrameSync (Complex)} at the beginning, since there are no pilots, the first frame sync is removed; received data goes directly to the matched filter
+\end{itemize}
+
+\begin{SummaryBox}{DPSK vs BPSK: structural comparison}
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\hline
+\textbf{Component} & \textbf{BPSK} & \textbf{DPSK} \\
+\hline
+Pilot symbols & Yes & No \\
+Channel Estimator & Yes & No \\
+Differential Encoder (TX) & No & Yes \\
+Differential Decoder (RX) & No & Yes \\
+Phase knowledge required & Yes (coherent) & No (noncoherent) \\
+\hline
+\end{tabular}
+\end{center}
+\end{SummaryBox}
+
+\subsection{BER Theory for DPSK}
+
+The theoretical BER for DPSK with differential demodulation is:
+
+\begin{equation}
+P_{e,\text{DPSK}} = \frac{1}{2}\,e^{-A^2/2\sigma^2}
+\end{equation}
+
+Expressing in terms of $E_b/N_0$:
+
+\begin{equation}
+\boxed{P_{e,\text{DPSK}} = \frac{1}{2}\,e^{-E_b/N_0}}
+\end{equation}
+
+Compare with the coherent BPSK result from Section~\ref{sec:ber-theory}:
+
+\begin{equation}
+P_{e,\text{BPSK}} = Q\!\left(\sqrt{\frac{2E_b}{N_0}}\right)
+\end{equation}
+
+\begin{KeyBox}{BPSK vs DPSK: BER comparison}
+\begin{itemize}
+\item At the same $E_b/N_0$, BPSK always achieves a \textbf{lower BER} than DPSK, coherent detection is theoretically optimal
+\item However, DPSK does not need channel estimation or pilots, so it is \textbf{simpler to implement} and does not waste bandwidth on pilot symbols
+\item The trade-off: DPSK sacrifices some noise performance for the benefit of not requiring knowledge of the carrier phase
+\item At high $E_b/N_0$, the difference is small; at low $E_b/N_0$, BPSK pulls ahead
+\end{itemize}
+\end{KeyBox}
+
+\begin{IntuitionBox}{Why DPSK has worse BER than BPSK}
+In DPSK, the decoder uses the \textbf{previous noisy sample} as its phase reference. In BPSK, the channel estimator provides a \textbf{clean} phase reference (estimated from multiple pilots, averaging out noise). Using a noisy reference introduces additional uncertainty into each decision, increasing the error probability. One error can also propagate: if sample $n-1$ is decoded wrong, it corrupts the reference for sample $n$.
+\end{IntuitionBox}
+
+\includegraphics[width=0.8\textwidth]{BPSKvsDPSK.png}\\[0.5em]
+
+\newpage
+\section{Exercise 3: DPSK : Task Answers}
+\label{sec:ex3-tasks}
+
+\subsection{Task 1: DPSK Block Diagram}
+
+\includegraphics[width=0.8\textwidth]{DPSK_block1.png}\\[0.5em]
+
+\includegraphics[width=0.8\textwidth]{DPSK_block2.png}\\[0.5em]
+
+\includegraphics[width=0.8\textwidth]{DPSK_block3.png}\\[0.5em]
+
+\begin{itemize}
+\item \texttt{MT Generate Bits} $\rightarrow$ Symbol Mapping ($0 \rightarrow -1$, $1 \rightarrow +1$) $\rightarrow$ \texttt{AddFrameHeader} $\rightarrow$ \textbf{Differential Encoder} $\rightarrow$ \texttt{Upsample} by $L = 20$ $\rightarrow$ RRC Pulse Shaping $\rightarrow$ \texttt{Quick Scale 1D} $\rightarrow$ Real to Complex $\rightarrow$ \texttt{niUSRP Write Tx Data}
+\end{itemize}
+
+Note: compared to BPSK, \texttt{Insert Pilots} and \texttt{AddFrameHeader (Complex)} are \textbf{removed}.
+
+\textbf{Receiver chain (modified from BPSK):}
+
+\begin{itemize}
+\item \texttt{niUSRP Fetch Rx Data} $\rightarrow$ \texttt{Convolution (CDB)} with RRC matched filter $\rightarrow$ \texttt{PulseAlign (Complex)} $\rightarrow$ \texttt{Decimate} $\rightarrow$ \textbf{Differential Decoder} $\rightarrow$ \texttt{FrameSync (Complex)} $\rightarrow$ Detection $\rightarrow$ \texttt{Array Subset} $\rightarrow$ \texttt{MT Calculate BER}
+\end{itemize}
+
+Note: compared to BPSK, \texttt{Channel Estimator} and the initial \texttt{FrameSync (Complex)} are \textbf{removed}. All blocks use complex (CDB) variants.
+
+\subsection{Task 2: BER at Default Settings}
+
+With all gains at their default values (Tx: 0 dB, Rx: 0 dB), the system was run several times:
+
+\begin{itemize}
+\item Across all runs, the observed BER was consistently $\approx 0$
+\item At full gain, $E_b/N_0$ is high enough that both the BPSK and DPSK BER formulas give negligibly small error probabilities
+\item The system synchronises correctly and all bits are recovered
+\end{itemize}
+
+\subsection{Task 3: BER vs.\ Gain Settings and Comparison with BPSK}
+
+Each configuration was run 5 times:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{cc|ccccc|c}
+\hline
+\multicolumn{2}{c|}{\textbf{Gain (dB)}} & \multicolumn{5}{c|}{\textbf{BER (DPSK)}} & \textbf{Average} \\
+\textbf{Tx} & \textbf{Rx} & Run 1 & Run 2 & Run 3 & Run 4 & Run 5 & \textbf{BER} \\
+\hline
+0 & 0 & 0 & 0 & 0 & 0 & 0 & 0.00000 \\
+$-35$ & $-15$ & 0.0194 & 0 & 0.0312 & 0.0651 & 0.2387 & 0.07088 \\
+$-37$ & $-15$ & 0.0112 & 0.0153 & 0.0088 & 0.0214 & 0.3481 & 0.08096 \\
+$-40$ & $-15$ & 0.4856 & 0.4612 & 0.4583 & 0.4791 & 0.4903 & 0.47490 \\
+\hline
+\end{tabular}
+\end{center}
+
+\vspace{0.5em}
+
+\textbf{Side-by-side comparison with BPSK:}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{cc|c|c}
+\hline
+\multicolumn{2}{c|}{\textbf{Gain (dB)}} & \textbf{Avg BER (BPSK)} & \textbf{Avg BER (DPSK)} \\
+\textbf{Tx} & \textbf{Rx} & (Exercise 2) & (Exercise 3) \\
+\hline
+0 & 0 & 0.00000 & 0.00000 \\
+$-35$ & $-15$ & 0.46966 & 0.07088 \\
+$-37$ & $-15$ & 0.48058 & 0.08096 \\
+$-40$ & $-15$ & 0.48980 & 0.47490 \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{Analysis:}
+
+\begin{itemize}
+\item \textbf{(Tx: 0, Rx: 0)}: Both systems achieve BER $= 0$. At high $E_b/N_0$, the theoretical advantage of BPSK is negligible
+
+\item \textbf{(Tx: $-35$, Rx: $-15$)}: This is the most striking result. BPSK gives BER $\approx 0.47$ (effectively random guessing), while DPSK gives BER $\approx 0.07$ (most bits correct). This seems to contradict the theory that BPSK should always outperform DPSK
+
+\item \textbf{(Tx: $-37$, Rx: $-15$)}: Same pattern: BPSK $\approx 0.48$ vs DPSK $\approx 0.08$. DPSK still vastly outperforms BPSK at this gain setting
+
+\item \textbf{(Tx: $-40$, Rx: $-15$)}: Both systems collapse to BER $\approx 0.48$. The signal is too weak for either scheme to recover information
+\end{itemize}
+
+\begin{IntuitionBox}{Why does DPSK outperform BPSK here? This contradicts theory!}
+In theory, coherent BPSK (with \textbf{perfect} channel estimation) always beats DPSK. But in this lab, the channel estimation is \textbf{not perfect}:
+
+\begin{itemize}
+\item At low gain, the pilot symbols are corrupted by noise just like the data
+\item The Channel Estimator produces a noisy, inaccurate estimate of $\hat{H}$
+\item Applying a bad $1/\hat{H}$ correction can rotate the constellation \textbf{more} than doing nothing
+\item The result: BPSK's channel estimation \textbf{breaks down} at low SNR, causing near-random BER
+\end{itemize}
+
+\vspace{0.3cm}
+
+Meanwhile, DPSK's differential decoder only relies on the \textbf{relative phase between two adjacent samples}. Even if both samples are noisy, their phase difference is still partially preserved as long as the noise is not overwhelming. This makes DPSK more \textbf{robust} at moderate SNR, even though it is theoretically suboptimal.
+
+\vspace{0.3cm}
+
+Theoretical BER curves assume ideal conditions. In practice, implementation quality (especially channel estimation accuracy) determines which system actually performs better.
+\end{IntuitionBox}
+
+\begin{KeyBox}{BPSK vs DPSK: the practical trade-off}
+\begin{itemize}
+\item \textbf{BPSK (coherent)}: theoretically optimal BER, but requires accurate channel estimation. If the estimate is poor (low SNR, few pilots), performance collapses
+\item \textbf{DPSK (noncoherent)}: slightly worse theoretical BER, but no channel estimation needed. More robust when the channel is hard to estimate
+\item \textbf{In this lab}: DPSK wins at intermediate gain settings because the BPSK channel estimator fails before the DPSK decoder does
+\item \textbf{Trade-off}: complexity and pilot overhead (BPSK) vs.\ robustness and simplicity (DPSK)
+\end{itemize}
+\end{KeyBox}
+
+\begin{SummaryBox}{Exercise 3: Key Takeaways}
+\begin{itemize}
+\item DPSK encodes information in the \textbf{change} between consecutive symbols: $b_n = b_{n-1} \times a_n$
+\item The decoder multiplies the current sample by the conjugate of the previous sample, cancelling the unknown phase $\phi$
+\item No pilots and no channel estimation needed $\rightarrow$ simpler system, less bandwidth overhead
+\item Theoretical BER: $P_{e,\text{DPSK}} = \frac{1}{2}e^{-E_b/N_0}$ (worse than BPSK's $Q(\sqrt{2E_b/N_0})$)
+\item In practice, DPSK outperforms BPSK at intermediate SNR because BPSK's channel estimation degrades before DPSK's differential decoder does
+\item At very low SNR, both systems fail (BER $\approx 0.5$); at very high SNR, both succeed (BER $\approx 0$)
+\end{itemize}
+\end{SummaryBox}
+
+\newpage
+\section{Exercise 4: Error Correction Coding (Bonus) :Conceptual Analysis}
+\label{sec:ex4-analysis}
+
+\begin{GoalBox}{Goal of Exercise 4 (What we build)}
+Add \textbf{Forward Error Correction (FEC)} to the BPSK system from Exercise 2. The transmitter sends each bit \textbf{three times} (repetition code), and the receiver uses a \textbf{majority vote decoder} to correct single-bit errors within each triplet. This trades bandwidth for reliability.
+\end{GoalBox}
+
+\subsection{The Problem FEC Solves}
+
+In Exercise 2, we saw that reducing the gain causes BER to increase rapidly. Once a bit is received incorrectly, there is no way to fix it : the error is permanent. FEC adds \textbf{controlled redundancy} at the transmitter so that the receiver can \textbf{detect and correct} some errors without needing retransmission.
+
+The simplest possible FEC scheme is the \textbf{repetition code}: send every bit multiple times. If some copies are corrupted by noise, the majority still carry the correct value.
+
+\subsection{FEC Encoder (Transmitter)}
+
+The encoder takes each message bit and repeats it 3 times consecutively:
+
+\begin{equation}
+\text{Input: } 0\;1\;1 \quad\longrightarrow\quad \text{Output: } 0\;0\;0\;1\;1\;1\;1\;1\;1
+\end{equation}
+
+The original 1000-bit message becomes a 3000-bit encoded message. This is called a \textbf{rate-$1/3$ code}: for every 1 information bit, we transmit 3 coded bits.
+
+\begin{IntuitionBox}{What does ``rate $1/3$'' mean practically?}
+It means we use 3$\times$ more bandwidth (or 3$\times$ more time) to send the same amount of information. If the original BPSK system transmits at 10,000 symbols/s carrying 10,000 bits/s, the FEC system still transmits at 10,000 symbols/s but only carries $10{,}000 / 3 \approx 3{,}333$ information bits/s. The rest is redundancy.
+\end{IntuitionBox}
+
+\subsubsection{LabVIEW Implementation of the Encoder}
+
+The encoder is placed \textbf{after} \texttt{MT Generate Bits} and \textbf{before} symbol mapping:
+
+\begin{itemize}
+\item A \texttt{For Loop} iterates over each bit of the original message
+\item Inside the loop: the current bit is repeated 3 times using array concatenation (e.g.\ \texttt{Build Array} or \texttt{Interleave 1D Arrays} with three copies)
+\item The output is an array 3$\times$ the original length
+\item The loop index $i$ selects bit $i$, checks if it is $> 0$, and outputs either $+1$ (three times) or $0$ (three times) accordingly
+\end{itemize}
+
+\includegraphics[width=0.8\textwidth]{encoder.png}\\[0.5em]
+
+\subsection{FEC Decoder (Receiver)}
+
+At the receiver, after the standard BPSK demodulation (matched filter, decimate, detect), the received bits arrive in groups of 3. The decoder applies a \textbf{majority vote} rule to each triplet:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{cc}
+\hline
+\textbf{Triplet received} & \textbf{Bit decoded} \\
+\hline
+000 & 0 \\
+001 & 0 \\
+010 & 0 \\
+011 & 1 \\
+100 & 0 \\
+101 & 1 \\
+110 & 1 \\
+111 & 1 \\
+\hline
+\end{tabular}
+\end{center}
+
+The rule is simple: if 2 or more of the 3 received bits are 1, decode as 1. Otherwise, decode as 0. This corrects any \textbf{single-bit error} within a triplet.
+
+\subsubsection{Why Majority Vote Works}
+
+Consider a triplet where the original bit is 0, so the transmitter sends $0\;0\;0$:
+
+\begin{itemize}
+\item If 0 bits are flipped: received $000 \rightarrow$ decoded 0
+\item If 1 bit is flipped: received $001$, $010$, or $100 \rightarrow$ decoded 0 \ (error corrected)
+\item If 2 bits are flipped: received $011$, $101$, or $110 \rightarrow$ decoded 1  (uncorrectable)
+\item If 3 bits are flipped: received $111 \rightarrow$ decoded 1  (uncorrectable)
+\end{itemize}
+
+So the decoder can correct \textbf{1 error per triplet} but fails if 2 or more bits in the same triplet are wrong.
+
+\subsubsection{Error Probability After FEC}
+
+If the raw (uncoded) BER is $p$, the probability that a decoded bit is wrong after majority vote is the probability of 2 or 3 errors in a triplet of 3 independent bits:
+
+\begin{equation}
+P_{e,\text{FEC}} = \binom{3}{2}p^2(1-p) + \binom{3}{3}p^3 = 3p^2(1-p) + p^3 = 3p^2 - 2p^3
+\end{equation}
+
+\begin{KeyBox}{When does FEC help?}
+\begin{itemize}
+\item If $p < 0.5$: then $P_{e,\text{FEC}} = 3p^2 - 2p^3 < p$, so FEC \textbf{improves} the BER
+\item Example: if $p = 0.1$ (10\% raw errors), then $P_{e,\text{FEC}} = 3(0.01) - 2(0.001) = 0.028$ (2.8\% after FEC) : a significant improvement
+\item If $p = 0.01$ (1\% raw errors), then $P_{e,\text{FEC}} \approx 0.0003$ (0.03\%): even more dramatic
+\item If $p \approx 0.5$ (random guessing): $P_{e,\text{FEC}} \approx 3(0.25) - 2(0.125) = 0.5$ : FEC cannot help because the channel carries no information to begin with
+\end{itemize}
+\end{KeyBox}
+
+\subsubsection{LabVIEW Implementation of the Decoder}
+
+The decoder is placed \textbf{after} the \texttt{Array Subset} function (which must now extract $3 \times$ the message length):
+
+\begin{itemize}
+\item A \texttt{For Loop} iterates over the received bit array in steps of 3
+\item Inside the loop: we extract 3 consecutive bits using \texttt{Array Subset} with index $3i$ and length 3
+\item We then sum the 3 bits together: if the sum $\geq 2$, output 1; otherwise output 0
+\item The output array has the original message length (1000 bits)
+\item This output is connected to \texttt{MT Calculate BER}
+\end{itemize}
+
+\includegraphics[width=0.8\textwidth]{decoder.png}\\[0.5em]
+
+\begin{IntuitionBox}{Important LabVIEW change at the receiver}
+The \texttt{Array Subset} ``length'' input must be changed from the message length (1000) to $3 \times$ the message length (3000). This is because the receiver now demodulates 3000 bits before the FEC decoder reduces them back to 1000.
+\end{IntuitionBox}
+
+\subsection{The Fundamental Trade-Off: Bandwidth vs.\ Reliability}
+
+FEC does not create information from nothing. It trades one resource for another:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\hline
+\textbf{Property} & \textbf{Without FEC} & \textbf{With FEC (rate $1/3$)} \\
+\hline
+Bits transmitted per message & 1000 & 3000 \\
+Information bits per message & 1000 & 1000 \\
+Effective data rate & $R_s = 10{,}000$ bits/s & $R_s / 3 \approx 3{,}333$ bits/s \\
+Transmission time (same rate) & $T$ & $3T$ \\
+Error correction capability & None & 1 error per triplet \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{IntuitionBox}{The trade-off in one sentence}
+Single-bit errors are automatically corrected at the receiver without retransmission at the cost of 3 times more channel ressources
+\end{IntuitionBox}
+
+\newpage
+\section{Exercise 4 (Bonus) : Error Correction Coding : Task Answers}
+\label{sec:ex4-tasks}
+
+\subsection{Task 1: Block Diagram}
+
+\includegraphics[width=0.8\textwidth]{FECblock1.png}\\[0.5em]
+\includegraphics[width=0.8\textwidth]{FECblock2.png}\\[0.5em]
+The system is identical to the BPSK system from Exercise 2, with two additions:
+
+\begin{itemize}
+\item \textbf{TX side}: FEC Encoder inserted after \texttt{MT Generate Bits}, before symbol mapping. Each bit is tripled consecutively ($011 \rightarrow 000111111$)
+\item \textbf{RX side}: The decoder groups bits into triplets and applies majority vote
+\end{itemize}
+
+All other blocks (symbol mapping, upsampling, RRC filter, channel estimation, matched filter, decimate, detection) remain \textbf{unchanged} from Exercise 2.
+
+\subsection{Task 2: BER vs.\ Gain Settings with FEC}
+
+Each configuration was run 5 times:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{cc|ccccc|c}
+\hline
+\multicolumn{2}{c|}{\textbf{Gain (dB)}} & \multicolumn{5}{c|}{\textbf{BER (BPSK + FEC)}} & \textbf{Average} \\
+\textbf{Tx} & \textbf{Rx} & Run 1 & Run 2 & Run 3 & Run 4 & Run 5 & \textbf{BER} \\
+\hline
+0 & 0 & 0 & 0 & 0 & 0 & 0 & 0.00000 \\
+$-35$ & $-15$ & 0.2831 & 0 & 0.1724 & 0 & 0.1813 & 0.12736 \\
+$-37$ & $-15$ & 0.0198 & 0.1682 & 0.1654 & 0 & 0.3712 & 0.14492 \\
+$-40$ & $-15$ & 0.1856 & 0.1743 & 0.1712 & 0.1583 & 0.1726 & 0.17240 \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsection{Task 3: Comparison with BPSK Without FEC}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{cc|c|c}
+\hline
+\multicolumn{2}{c|}{\textbf{Gain (dB)}} & \textbf{Avg BER (BPSK)} & \textbf{Avg BER (BPSK + FEC)} \\
+\textbf{Tx} & \textbf{Rx} & (Exercise 2) & (Exercise 4) \\
+\hline
+0 & 0 & 0.00000 & 0.00000 \\
+$-35$ & $-15$ & 0.46966 & 0.12736 \\
+$-37$ & $-15$ & 0.48058 & 0.14492 \\
+$-40$ & $-15$ & 0.48980 & 0.17240 \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{Analysis:}
+
+\begin{itemize}
+\item \textbf{(Tx: 0, Rx: 0)}: Both systems achieve BER $= 0$. FEC provides no benefit when there are no errors to correct
+
+\item \textbf{(Tx: $-35$, Rx: $-15$)}: BPSK alone gives BER $\approx 0.47$ (random guessing), while BPSK + FEC gives BER $\approx 0.13$. The FEC system shows a dramatic improvement, the majority vote decoder is successfully correcting many of the single-bit errors within triplets
+
+\item \textbf{(Tx: $-37$, Rx: $-15$)}: Similar pattern: BPSK $\approx 0.48$ vs FEC $\approx 0.14$. FEC continues to provide substantial error correction
+
+\item \textbf{(Tx: $-40$, Rx: $-15$)}: BPSK $\approx 0.49$ vs FEC $\approx 0.17$. Even at the lowest gain, FEC still reduces BER significantly. However, 17\% BER is still far too high for reliable communication
+\end{itemize}
+
+\begin{IntuitionBox}{Why doesn't FEC achieve BER $= 0$ at low gain? (Mathematical intuition)}
+The majority vote decoder can only correct \textbf{1 error per triplet}. At low $E_b/N_0$, the raw BER $p$ is close to 0.5, meaning roughly half the bits are wrong. In a triplet of 3 bits where each has a 50\% chance of error, it is common for 2 or 3 bits to be flipped, and the decoder cannot fix these. The formula $P_{e,\text{FEC}} = 3p^2 - 2p^3$ confirms: at $p = 0.5$, $P_{e,\text{FEC}} = 0.5$ (no improvement). FEC only helps meaningfully when the raw BER is already moderate.
+\end{IntuitionBox}
+
+\vspace{1cm}
+
+\subsection{Task 4: Trade-Offs of the FEC System}
+
+\begin{KeyBox}{Advantages of FEC}
+\begin{itemize}
+\item Corrects single-bit errors automatically at the receiver, no retransmission needed
+\item Simple to implement (repetition + majority vote)
+\item Improves BER significantly when the raw error rate is moderate ($p < 0.5$)
+\item Works with the existing BPSK system, only the encoder and decoder are added
+\end{itemize}
+\end{KeyBox}
+
+\begin{KeyBox}{Disadvantages of FEC}
+\begin{itemize}
+\item \textbf{Bandwidth cost}: transmits $3\times$ more bits for the same information $\rightarrow$ effective data rate drops to $1/3$
+\item \textbf{Latency}: the message takes $3\times$ longer to transmit at the same symbol rate
+\item \textbf{No help at very low SNR}: when $p \approx 0.5$, FEC provides no improvement, the channel carries no usable information
+\item \textbf{Energy trade-off}: the total transmitted energy increases by $3\times$ (since we send 3$\times$ more symbols), but the energy \textbf{per information bit} also increases, which leads to a worst performance when normalizing to the same Energy per information bit. (See below for mathematical proof)
+\end{itemize}
+\end{KeyBox}
+
+\subsection{Full Comparison Across All Exercises}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{cc|c|c|c}
+\hline
+\multicolumn{2}{c|}{\textbf{Gain (dB)}} & \textbf{BPSK} & \textbf{DPSK} & \textbf{BPSK + FEC} \\
+\textbf{Tx} & \textbf{Rx} & (Ex.\ 2) & (Ex.\ 3) & (Ex.\ 4) \\
+\hline
+0 & 0 & 0.00000 & 0.00000 & 0.00000 \\
+$-35$ & $-15$ & 0.46966 & 0.07088 & 0.12736 \\
+$-37$ & $-15$ & 0.48058 & 0.08096 & 0.14492 \\
+$-40$ & $-15$ & 0.48980 & 0.47490 & 0.17240 \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{Observations:}
+
+\begin{itemize}
+\item At \textbf{full gain}: all three systems work perfectly (BER $= 0$)
+
+\item At \textbf{moderate attenuation} ($-35$, $-37$ dB): DPSK performs best, followed by FEC, with plain BPSK performing worst. DPSK benefits from not relying on a degraded channel estimator. FEC benefits from error correction but is limited by the $3\times$ redundancy overhead
+
+\item At \textbf{extreme attenuation} ($-40$ dB): FEC performs best ($\approx 0.17$), DPSK and BPSK both collapse to $\approx 0.48$. At this point, the raw BER is so high that DPSK's differential decoder also fails, but FEC's majority vote still salvages some bits
+
+\item Each approach addresses a different problem: DPSK avoids the channel estimation bottleneck, FEC adds redundancy to correct errors after they happen. They are complementary strategies
+\end{itemize}
+
+\newpage
+
+\begin{IntuitionBox}{Does the repetition code really help?}
+In the lab, the FEC system sends $3\times$ more symbols for the same 1000 information bits, using $3\times$ more total energy. Most of the observed BER improvement comes from this \textbf{brute-force energy increase}, not from the error correction itself.
+
+\vspace{0.5cm}
+
+A fair comparison fixes $E_b/N_0$ (same energy per information bit). Under this constraint, each of the 3 copies only gets $E_b/3$ energy, so the raw BER per coded bit is $Q(\sqrt{2E_b/(3N_0)})$, \textbf{worse} than the original $Q(\sqrt{2E_b/N_0})$.
+
+\vspace{1cm}
+
+The majority vote corrects some of these errors, but not enough to compensate for the energy penalty. The repetition code actually performs \textbf{worse} than uncoded BPSK at the same $E_b/N_0$.
+
+\vspace{0.5cm}
+
+This is why real systems use sophisticated codes (turbo codes, Low Density Parity Check) instead of simple repetition,  those achieve genuine coding gain without wasting energy on brute-force redundancy.
+\end{IntuitionBox}
+
+\vspace{2cm}
+
+\begin{SummaryBox}{Exercise 4: Key Takeaways}
+\begin{itemize}
+\item FEC (rate $1/3$ repetition code) triples each bit and uses majority vote decoding
+\item It corrects 1 error per triplet: $P_{e,\text{FEC}} = 3p^2 - 2p^3$
+\item FEC improves BER significantly at moderate raw error rates but cannot help when $p \approx 0.5$
+\item The cost is $3\times$ bandwidth / transmission time for the same information
+\item Compared across all exercises: DPSK wins at moderate SNR (avoids bad channel estimation), FEC wins at very low SNR (corrects errors that DPSK cannot), plain BPSK is worst at low SNR due to channel estimation failure
+\end{itemize}
+\end{SummaryBox}
+
+\newpage
+\section{Extension: M-QAM Modulation: Theory, Simulation, and Analysis}
+\label{sec:extension-qam}
+
+\begin{GoalBox}{Goal of this extension}
+Generalise the BPSK system studied in Exercises 1--4 to higher-order modulation schemes. Plot their constellation diagrams, and measure the Bit Error Ratio under additive Gaussian noise. The central question: \textbf{how does increasing the modulation order $M$ trade spectral efficiency for noise robustness?}
+\end{GoalBox}
+
+\subsection{From BPSK to QAM: Why Go Higher?}
+
+In BPSK (Exercises 1--2), each symbol carries \textbf{1 bit}. The two constellation points sit at $+1$ and $-1$ on the real axis. This is the most robust scheme (maximum distance between points for a given power), but also the least efficient: to send $R$ bits/s, we need $R$ symbols/s,.
+
+The natural question is: \textbf{can we send more bits per symbol without increasing bandwidth?}
+
+The answer is \textbf{Quadrature Amplitude Modulation (QAM)}: instead of placing symbols on a 1D line (real axis only), we place them on a 2D grid in the complex plane, using \textbf{both} the in-phase (I) and quadrature (Q) axes.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lccc}
+\hline
+\textbf{Scheme} & \textbf{Constellation points $M$} & \textbf{Bits per symbol $k = \log_2 M$} & \textbf{Relative data rate} \\
+\hline
+BPSK & 2 & 1 & $1\times$ \\
+4-QAM (QPSK) & 4 & 2 & $2\times$ \\
+16-QAM & 16 & 4 & $4\times$ \\
+64-QAM & 64 & 6 & $6\times$ \\
+\hline
+\end{tabular}
+\end{center}
+
+All schemes use the \textbf{same symbol rate} (same bandwidth). The throughput increase comes entirely from packing more bits into each symbol.
+
+\begin{IntuitionBox}{BPSK is a special case of QAM}
+BPSK is simply 2-QAM: two points on the real axis, one bit per symbol, no quadrature component. 4-QAM (QPSK) is the first step up: four points, two bits per symbol, using both I and Q. Everything in Exercises 1--4 is the $M = 2$ case of the general framework developed here.
+\end{IntuitionBox}
+
+\subsection{QAM Signal Model}
+
+\subsubsection{Transmitted Signal}
+
+A general QAM symbol is a complex number:
+
+\begin{equation}
+s_m = a_m + j\,b_m, \qquad m \in \{0, 1, \ldots, M-1\}
+\end{equation}
+
+where $a_m$ and $b_m$ are the in-phase and quadrature amplitudes selected from a discrete grid. The passband transmitted signal for symbol $m$ is:
+
+\begin{equation}
+x(t) = a_m\,g(t)\cos(2\pi f_c t) - b_m\,g(t)\sin(2\pi f_c t)
+\end{equation}
+
+where $g(t)$ is the pulse shape. This can be written compactly as:
+
+\begin{equation}
+x(t) = \text{Re}\!\left\{s_m\,g(t)\,e^{j2\pi f_c t}\right\}
+\end{equation}
+
+\begin{KeyBox}{Two independent channels in one bandwidth}
+The $\cos(2\pi f_c t)$ and $\sin(2\pi f_c t)$ carriers are \textbf{orthogonal}: they occupy the same frequency band but do not interfere with each other. QAM exploits this by sending independent data on each carrier. This is why QAM doubles the spectral efficiency compared to using only one axis (like BPSK).
+
+Mathematically, orthogonality means:
+\begin{equation}
+\int_0^T \cos(2\pi f_c t)\,\sin(2\pi f_c t)\,dt = 0
+\end{equation}
+The receiver can separate I and Q by multiplying with $\cos$ and $\sin$ respectively (exactly as derived in the downconversion section of Exercise 2).
+\end{KeyBox}
+
+\subsubsection{Square QAM Constellation Construction}
+
+For square $M$-QAM (where $\sqrt{M}$ is an integer), the constellation points are arranged on a regular grid:
+
+\begin{equation}
+a_m \in \{-({\sqrt{M}-1}),\; -({\sqrt{M}-3}),\; \ldots,\; +(\sqrt{M}-3),\; +(\sqrt{M}-1)\}
+\end{equation}
+
+and similarly for $b_m$. The grid has $\sqrt{M}$ points per dimension, giving $M$ total points.
+
+\begin{IntuitionBox}{Why odd integers centred at zero?}
+We need $\sqrt{M}$ evenly spaced points. Starting from indices $0, 1, \ldots, \sqrt{M}-1$, multiply by 2 and subtract $(\sqrt{M}-1)$ to centre at zero. The result is odd integers from $-(\sqrt{M}-1)$ to $+(\sqrt{M}-1)$ with spacing 2. For example: $\sqrt{M}=4$ gives $\{-3,-1,+1,+3\}$. Centring at zero ensures no DC offset, and the spacing of 2 places the decision boundaries at the even integers ($0, \pm 2, \pm 4, \ldots$), which simplifies detection.
+
+The choice of spacing 2 is a convention: it makes all constellation points land on integers, which is mathematically convenient. We could equally use spacing 1 (giving $\{-1.5, -0.5, +0.5, +1.5\}$ for 4-QAM) and the system would behave identically after normalisation. The actual physical distance between points in the transmitted signal is set by the normalisation factor $\sqrt{3/(2(M-1))}$, not by the raw grid spacing.
+\end{IntuitionBox}
+
+\begin{IntuitionBox}{Why only $M = 4, 16, 64, 256, \ldots$?}
+Square QAM requires $\sqrt{M}$ to be an integer, so $M$ must be a perfect square. Non-square orders like $M = 8$ exist but use irregular constellation shapes (circles, crosses) that cannot be detected by simple independent I/Q quantisation, they require a full 2D nearest-point search, adding complexity. In practice, the standard progression is $M = 4, 16, 64, 256, 1024$: the efficiency gain of non-square orders ( only 1 extra bit/symbol from 4 to 8) is not worth the added implementation cost when we can jump to the next square order instead. All major standards (Wi-Fi, 4G, 5G) use square QAM exclusively.
+\end{IntuitionBox}
+
+\begin{IntuitionBox}{Pulse shaping in QAM: same principle as BPSK}
+The QAM transmitted signal follows the exact same model as BPSK , but with complex symbols instead of real ones:
+\begin{equation}
+s(t) = \sum_k a_k\,p(t - kT), \qquad a_k = I_k + jQ_k
+\end{equation}
+Each symbol $a_k$ is a complex number from the QAM constellation.
+
+Since $a_k$ is complex, the signal splits into two independent branches:
+\begin{equation}
+I(t) = \sum_k I_k\,p(t - kT), \qquad Q(t) = \sum_k Q_k\,p(t - kT)
+\end{equation}
+Each branch is a pulse-shaped PAM (Pulse Amplitude Modulation: a sequence of pulses where each pulse has a different amplitude depending on the data), identical in structure to the BPSK baseband waveform from Exercise 1. Both use the same RRC filter. At the passband:
+\begin{equation}
+x(t) = I(t)\cos(2\pi f_c t) - Q(t)\sin(2\pi f_c t)
+\end{equation}
+The $\cos$ and $\sin$ carriers are orthogonal, so I and Q do not interfere with each other, this is how QAM carries two independent data streams in the same bandwidth. The RRC pulse shaping on each branch controls the spectrum and ensures ISI-free sampling, exactly as derived in Section 1.5--1.9.
+\end{IntuitionBox}
+
+\subsubsection{Mapping from Symbol Index to Coordinates}
+
+Given a symbol index $m \in \{0, 1, \ldots, M-1\}$, the I and Q coordinates are computed by treating $m$ as a row-column index on the grid:
+
+\begin{equation}
+\text{column} = m \;\mathrm{mod}\; \sqrt{M}, \qquad \text{row} = \left\lfloor \frac{m}{\sqrt{M}} \right\rfloor
+\end{equation}
+
+\begin{equation}
+I_m = 2 \cdot \text{column} - (\sqrt{M} - 1), \qquad Q_m = 2 \cdot \text{row} - (\sqrt{M} - 1)
+\end{equation}
+
+This centres the grid at the origin and spaces the points by 2 units apart.
+
+\subsubsection{Worked Example: 4-QAM ($M = 4$, $\sqrt{M} = 2$)}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{c|cc|cc|c}
+\hline
+$m$ & column & row & $I$ & $Q$ & Quadrant \\
+\hline
+0 & 0 & 0 & $-1$ & $-1$ & III (bottom-left) \\
+1 & 1 & 0 & $+1$ & $-1$ & IV (bottom-right) \\
+2 & 0 & 1 & $-1$ & $+1$ & II (top-left) \\
+3 & 1 & 1 & $+1$ & $+1$ & I (top-right) \\
+\hline
+\end{tabular}
+\end{center}
+
+\includegraphics[width=0.6\textwidth]{4QAM.jpg}\\[0.5em]
+
+\vspace{3cm}
+
+\subsubsection{Worked Example: 16-QAM ($M = 16$, $\sqrt{M} = 4$)}
+
+The grid coordinates for each dimension are $\{-3, -1, +1, +3\}$, giving a $4 \times 4$ grid of 16 points.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{c|cc|cc}
+\hline
+$m$ & column & row & $I$ & $Q$ \\
+\hline
+0 & 0 & 0 & $-3$ & $-3$ \\
+1 & 1 & 0 & $-1$ & $-3$ \\
+2 & 2 & 0 & $+1$ & $-3$ \\
+3 & 3 & 0 & $+3$ & $-3$ \\
+4 & 0 & 1 & $-3$ & $-1$ \\
+$\vdots$ & $\vdots$ & $\vdots$ & $\vdots$ & $\vdots$ \\
+15 & 3 & 3 & $+3$ & $+3$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\includegraphics[width=1\textwidth]{16QAM.JPEG}\\[0.5em]
+
+\vspace{2cm}
+
+\subsubsection{64-QAM ($M = 64$, $\sqrt{M} = 8$)}
+
+The grid coordinates for each dimension are $\{-7, -5, -3, -1, +1, +3, +5, +7\}$, giving an $8 \times 8$ grid of 64 points.
+
+\vspace{2cm}
+\subsection{Energy Normalisation}
+
+Without normalisation, higher-order constellations spread over a wider area and use more power. To compare schemes fairly at the same $E_b/N_0$, we normalise the constellation so the \textbf{average symbol energy is 1}:
+
+\begin{equation}
+E_{\text{avg}} = \frac{1}{M}\sum_{m=0}^{M-1}\left(a_m^2 + b_m^2\right)
+\end{equation}
+
+For square $M$-QAM with the grid spacing described above, this evaluates to:
+
+\begin{equation}
+E_{\text{avg}} = \frac{2(M-1)}{3}
+\end{equation}
+
+\begin{KeyBox}{Derivation of average energy}
+
+The total energy of a single constellation point is $E_m = a_m^2 + b_m^2$. The average energy across all $M$ points is:
+
+\begin{equation}
+E_{\text{avg}} = \frac{1}{M}\sum_{m=0}^{M-1}\left(a_m^2 + b_m^2\right) = \frac{1}{M}\sum_{m=0}^{M-1}a_m^2 + \frac{1}{M}\sum_{m=0}^{M-1}b_m^2 = \overline{a_m^2} + \overline{b_m^2}
+\end{equation}
+
+Since the grid is square, $a_m$ and $b_m$ take values from the same set of odd integers $\{-(\sqrt{M}-1), \ldots, +(\sqrt{M}-1)\}$, so $\overline{a_m^2} = \overline{b_m^2}$. We only need to compute one of them.
+
+\vspace{0.5cm}
+Each dimension has $\sqrt{M}$ values: $\{-(\sqrt{M}-1), -(\sqrt{M}-3), \ldots, +(\sqrt{M}-1)\}$. These are the odd integers from $-(\sqrt{M}-1)$ to $+(\sqrt{M}-1)$. The average of their squares is:
+\begin{equation}
+\frac{1}{\sqrt{M}}\sum_{i=0}^{\sqrt{M}-1}(2i - \sqrt{M} + 1)^2
+\end{equation}
+
+Let $n = \sqrt{M}$ (so $M = n^2$). Then:
+\begin{equation}
+\frac{1}{\sqrt{M}}\sum_{i=0}^{\sqrt{M}-1}(2i - \sqrt{M} + 1)^2 = \frac{1}{n}\sum_{i=0}^{n-1}(2i - n + 1)^2
+\end{equation}
+
+Expand the square:
+\begin{equation}
+(2i - n + 1)^2 = 4i^2 - 4i(n-1) + (n-1)^2
+\end{equation}
+
+So the sum is:
+\begin{equation}
+\sum_{i=0}^{n-1}(2i - n + 1)^2 = 4\sum_{i=0}^{n-1}i^2 - 4(n-1)\sum_{i=0}^{n-1}i + \sum_{i=0}^{n-1}(n-1)^2
+\end{equation}
+
+Use the standard formulas:
+\begin{equation}
+\sum_{i=0}^{n-1}i = \frac{n(n-1)}{2}, \qquad \sum_{i=0}^{n-1}i^2 = \frac{(n-1)n(2n-1)}{6}, \qquad \sum_{i=0}^{n-1}(n-1)^2 = n(n-1)^2
+\end{equation}
+
+Plug in:
+\begin{align}
+&= 4 \cdot \frac{(n-1)n(2n-1)}{6} - 4(n-1) \cdot \frac{n(n-1)}{2} + n(n-1)^2 \nonumber\\[0.5em]
+&= \frac{2}{3}n(n-1)(2n-1) - 2n(n-1)^2 + n(n-1)^2 \nonumber\\[0.5em]
+&= \frac{2}{3}n(n-1)(2n-1) - n(n-1)^2 = \frac{n(n^2 - 1)}{3}
+\end{align}
+
+Now divide by $n$:
+\begin{equation}
+\frac{1}{n} \cdot \frac{n(n^2 - 1)}{3} = \frac{n^2 - 1}{3} = \frac{M - 1}{3}
+\end{equation}
+
+\begin{equation}
+\boxed{\frac{1}{\sqrt{M}}\sum_{i=0}^{\sqrt{M}-1}(2i - \sqrt{M} + 1)^2 = \frac{M-1}{3}}
+\end{equation}
+
+\vspace{0.5cm}
+
+Since I and Q are independent and identically distributed:
+\begin{equation}
+E_{\text{avg}} = \mathbb{E}[a_m^2] + \mathbb{E}[b_m^2]
+= \frac{M-1}{3} + \frac{M-1}{3}
+= \frac{2(M-1)}{3}
+\end{equation}
+\end{KeyBox}
+
+The normalisation factor is therefore:
+
+\begin{equation}
+\text{scale} = \frac{1}{\sqrt{E_{\text{avg}}}} = \sqrt{\frac{3}{2(M-1)}}
+\end{equation}
+
+\begin{IntuitionBox}{Why $\sqrt{E_{\text{avg}}}$ and not $E_{\text{avg}}$?}
+We are scaling the \textbf{amplitude} (the coordinates $a_m$ and $b_m$), not the energy directly. Energy is proportional to amplitude \textbf{squared}: $E = a^2 + b^2$. If we divide the amplitude by a factor $c$, the energy gets divided by $c^2$:
+\begin{equation}
+E_{\text{new}} = \left(\frac{a}{c}\right)^2 + \left(\frac{b}{c}\right)^2 = \frac{a^2 + b^2}{c^2} = \frac{E_{\text{old}}}{c^2}
+\end{equation}
+We want $E_{\text{new}} = 1$, so we need $c^2 = E_{\text{avg}}$, which means $c = \sqrt{E_{\text{avg}}}$. That is why the scaling factor is $1/\sqrt{E_{\text{avg}}} = \sqrt{3/(2(M-1))}$
+\end{IntuitionBox}
+
+\vspace{1cm}
+
+After multiplying all constellation points by this factor, the average symbol energy is exactly 1 regardless of $M$.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\hline
+\textbf{Scheme} & $E_{\text{avg}}$ (before normalisation) & \textbf{Scale factor} \\
+\hline
+4-QAM & $2(4-1)/3 = 2$ & $\sqrt{3/6} = 1/\sqrt{2} \approx 0.707$ \\
+16-QAM & $2(16-1)/3 = 10$ & $\sqrt{3/30} \approx 0.316$ \\
+64-QAM & $2(64-1)/3 = 42$ & $\sqrt{3/84} \approx 0.189$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{IntuitionBox}{What normalisation does visually}
+Normalisation \textbf{shrinks} higher-order constellations so they all fit in roughly the same circle. This means the minimum distance between adjacent points \textbf{decreases} as $M$ increases, the points are packed closer together. At the same noise level, the noise clouds are more likely to overlap for 64-QAM than for 4-QAM. This is the fundamental reason higher-order QAM has worse BER.
+\end{IntuitionBox}
+
+\subsection{Why Does BER Get Worse as $M$ Increases?}
+
+The answer comes down to one quantity: the \textbf{minimum distance} $d_{\min}$ between adjacent constellation points.
+
+\subsubsection{The Geometric Argument}
+
+Before normalisation, all QAM schemes have the same spacing between adjacent points: 2 units. But normalisation shrinks higher-order constellations to fit the same average power. The more points we pack into the same power budget, the closer they get:
+
+\begin{equation}
+d_{\min} = \frac{\text{raw spacing}}{\sqrt{E_{\text{avg}}}} = \frac{2}{\sqrt{2(M-1)/3}} = \sqrt{\frac{6}{M-1}}
+\end{equation}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\hline
+\textbf{Scheme} & $d_{\min}$ & $d_{\min}$ relative to 4-QAM \\
+\hline
+4-QAM & $\sqrt{2} \approx 1.414$ & $1.00\times$ \\
+16-QAM & $\approx 0.632$ & $0.447\times$ \\
+64-QAM & $\approx 0.309$ & $0.218\times$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{IntuitionBox}{The core intuition}
+If we consider a transmitted symbol at one constellation point. The AWGN acts as a random displacement in the I-Q plane, shifting the received sample away from its true position. A detection error occurs when this displacement is large enough to move the received sample across the \textbf{decision boundary}( which is the midpoint between adjacent constellation points) into a neighbouring decision region.
+
+\begin{itemize}
+\item For 4-QAM: the boundary is far away ($d_{\min}/2 \approx 0.707$). The noise has to be large to push you across $\rightarrow$ errors are rare
+\item For 16-QAM: the boundary is closer ($d_{\min}/2 \approx 0.316$). A moderate noise push can cause an error
+\item For 64-QAM: the boundary is very close ($d_{\min}/2 \approx 0.155$). Even small noise causes errors frequently
+\end{itemize}
+
+Same noise, smaller gap $\rightarrow$ more errors.
+\end{IntuitionBox}
+
+\subsubsection{Why 4-QAM and BPSK Have the Same BER}
+
+4-QAM places points at $(\pm 1, \pm 1)$. The I and Q axes are independent (orthogonal carriers, independent noise). So 4-QAM is really \textbf{two parallel BPSK systems} running on the same bandwidth: one on I, one on Q. Each axis makes its own threshold decision at $0$, exactly like BPSK.
+
+The result: 4-QAM gives \textbf{twice the data rate} of BPSK (2 bits/symbol vs 1) at \textbf{the same BER} and \textbf{the same $E_b/N_0$}. This is a ``free'' doubling of throughput, which is why QPSK (= 4-QAM) is so widely used in practice.
+
+\subsubsection{The Fundamental Trade-Off}
+
+\begin{KeyBox}{Spectral efficiency vs.\ noise robustness}
+\begin{itemize}
+\item \textbf{Higher $M$}: more bits per symbol, higher data rate for the same bandwidth, but points are packed closer, so the system is more fragile to noise
+\item \textbf{Lower $M$}: fewer bits per symbol, lower data rate,  but points are far apart, so the system tolerates more noise
+\item The only improvement that comes at no cost is the 4QAM BPSK equivalence, otherwise, every increase in $M$ beyond 4 costs additional SNR to maintain the same BER
+\item Modern systems (Wi-Fi , 5G) exploit this by \textbf{adapting $M$ in real time}: measure the channel quality, use 64-QAM or 256-QAM when the channel is clean, fall back to 4-QAM when it is noisy. This is called \textbf{adaptive modulation and coding (AMC)}
+\end{itemize}
+\end{KeyBox}
+
+\subsection{LabVIEW Simulation Implementation}
+
+The simulation was implemented in a single VI (\texttt{QAM\_Simulation.gvi}) with the following structure:
+
+\begin{SummaryBox}{Simulation chain}
+\texttt{Random integer} $m \in \{0, \ldots, M-1\}$ $\;\rightarrow\;$ \texttt{Map to $(I_m, Q_m)$} $\;\rightarrow\;$ \texttt{Normalise} $\;\rightarrow\;$ \texttt{Form complex $s_m$} $\;\rightarrow\;$ \texttt{Add AWGN} $\;\rightarrow\;$ \texttt{Reconstruct $\hat{m}$} $\;\rightarrow\;$ \texttt{Compare with $m$} $\;\rightarrow\;$ \texttt{BER}
+\end{SummaryBox}
+
+\begin{itemize}
+\item The \textbf{first For Loop} generates $N_{\text{sym}} = 10{,}000$ random symbol indices and maps each to a normalised complex constellation point using the Quotient \& Remainder method described above. The symbol indices are also output for BER comparison
+
+\item \textbf{AWGN is added outside the loop}: the complex symbol array is split into Re and Im, two independent Gaussian noise arrays are added (controllable standard deviation $\sigma$), and the noisy signal is recombined into a complex array
+
+\item The \textbf{second For Loop} performs detection: each noisy complex sample is split into Re and Im, divided by the normalisation factor, shifted by $(\sqrt{M}-1)$, divided by 2, rounded to the nearest integer, and clipped to the valid grid range $\{0, \ldots, \sqrt{M}-1\}$. The detected column and row are recombined into a symbol index $\hat{m}$
+
+\item \textbf{BER is computed} by comparing the original and detected symbol index arrays element-by-element, counting mismatches, and dividing by $N_{\text{sym}}$
+\end{itemize}
+
+\vspace{2cm}
+
+\includegraphics[width=1\textwidth]{extensioncircuit.png}\\[0.5em]
+
+\vspace{2cm}
+
+\subsubsection{Row 1: Low Noise ($\sigma = 0.1$): Effect of Increasing $M$}
+
+\begin{center}
+\begin{tabular}{ccc}
+\includegraphics[width=0.32\textwidth]{extensionresult2.png} &
+\includegraphics[width=0.32\textwidth]{extensionresult5.png} &
+\includegraphics[width=0.32\textwidth]{extensionresult7.png} \\
+4-QAM, BER $= 0.01024$ & 16-QAM, BER $= 0.07905$ & 64-QAM, BER $= 0.09511$ \\
+\end{tabular}
+\end{center}
+
+\vspace{1cm}
+
+At low noise, 4-QAM has near-zero BER while 16-QAM and 64-QAM already show measurable errors. The constellation points are closer together for higher $M$, so even small noise causes boundary crossings.
+
+\vspace{1em}
+
+\subsubsection{Row 2: High Noise ($\sigma = 0.7$): Effect of Increasing $M$}
+
+\begin{center}
+\begin{tabular}{ccc}
+\includegraphics[width=0.32\textwidth]{extensionresult3.png} &
+\includegraphics[width=0.32\textwidth]{extensionresult6.png} &
+\includegraphics[width=0.32\textwidth]{extensionresult8.png} \\
+4-QAM, BER $= 0.11515$ & 16-QAM, BER $= 0.15583$ & 64-QAM, BER $= 0.42322$ \\
+\end{tabular}
+\end{center}
+
+\vspace{1cm}
+
+At high noise, the trade-off becomes dramatic: 4-QAM still recovers most bits (BER $\approx 0.12$), 16-QAM degrades further (BER $\approx 0.16$), and 64-QAM is near total failure (BER $\approx 0.42$, approaching random guessing at $0.5$).
+
+\vspace{2cm}
+
+\subsection{Experimental Results}
+
+The simulation was run for $M = 4$, $M = 16$, and $M = 64$ at several noise levels:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{c|ccc}
+\hline
+\textbf{Standard deviation $\sigma$} & \textbf{4-QAM BER} & \textbf{16-QAM BER} & \textbf{64-QAM BER} \\
+\hline
+0.05 & 0.00014 & 0.00831 & 0.01562 \\
+0.10 & 0.01024 & 0.07905 & 0.09511 \\
+0.15 & 0.02183 & 0.09412 & 0.15238 \\
+0.20 & 0.03762 & 0.10583 & 0.21473 \\
+0.30 & 0.05891 & 0.11726 & 0.30192 \\
+0.40 & 0.07943 & 0.12184 & 0.36284 \\
+0.50 & 0.09517 & 0.12520 & 0.40817 \\
+0.70 & 0.11515 & 0.15583 & 0.42322 \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsection{Analysis of Results}
+
+\begin{itemize}
+\item At \textbf{low noise} ($\sigma < 0.1$): all three schemes achieve BER $\approx 0$.
+
+\item At \textbf{every noise level}: BER$(64\text{-QAM}) >$ BER$(16\text{-QAM}) >$ BER$(4\text{-QAM})$. This ordering is universal and follows directly from $d_{\min}(64) < d_{\min}(16) < d_{\min}(4)$
+\end{itemize}
+
+\vspace{2cm}
+
+\begin{KeyBox}{The fundamental trade-off in digital modulation}
+\begin{itemize}
+\item \textbf{Higher $M$} $\rightarrow$ more bits per symbol $\rightarrow$ higher spectral efficiency (bits/s/Hz)
+\item \textbf{Higher $M$} $\rightarrow$ smaller $d_{\min}$ $\rightarrow$ worse BER at the same noise level
+\item The choice of $M$ depends on the channel: use 64-QAM on clean channels (optical fibre, short-range Wi-Fi), use BPSK or 4-QAM on noisy channels (satellite, deep space)
+\item Modern systems (Wi-Fi 6, 5G) \textbf{adapt $M$ in real time}: they estimate the channel SNR and choose the highest $M$ that keeps BER below an acceptable threshold. This is called \textbf{adaptive modulation and coding (AMC)}
+\end{itemize}
+\end{KeyBox}
+
+\vspace{2cm}
+
+\begin{IntuitionBox}{Connecting back to the lab}
+\begin{itemize}
+\item BPSK (Exercises 1--2) sits at the extreme left of this trade-off: 1 bit/symbol, most robust, lowest throughput
+\item 4-QAM gives exactly the same BER as BPSK but at 2 bits/symbol, a free doubling of throughput
+\item 16-QAM and 64-QAM push further: 4 and 6 bits/symbol, at the cost of needing a much cleaner channel
+\item The channel estimation studied in Exercise 2 and the noise resilience of DPSK (Exercise 3) become even more critical at higher $M$: a small phase error or noise spike that would be harmless in BPSK can cause many bit errors in 64-QAM
+\end{itemize}
+\end{IntuitionBox}
